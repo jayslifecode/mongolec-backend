@@ -32,6 +32,8 @@ function authCacheKey(userId: string): string {
  * Extend Express Request to include user and tenant
  */
 declare global {
+  // TypeScript requires `namespace` (not ES module syntax) to augment Express's types.
+  // eslint-disable-next-line @typescript-eslint/no-namespace
   namespace Express {
     interface Request {
       user?: {

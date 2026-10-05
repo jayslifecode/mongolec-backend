@@ -7,7 +7,7 @@ export const rallyQueries = {
       page = 1,
       limit = 20,
       status,
-      search,
+      search: _search, // not yet implemented — JSON field search needs raw SQL
       orderBy = 'createdAt',
       orderDirection = 'desc',
       tenantId: tenantIdArg,
