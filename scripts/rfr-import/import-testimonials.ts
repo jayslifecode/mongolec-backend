@@ -54,7 +54,8 @@ function mapRows() {
         slug: `${kebab(r.Name)}-testimonial`,
         title: { en: r.Name.trim(), mn: '' },
         content: { en: r.Quote.trim(), mn: '' },
-        excerpt: { en: (r['Position / Role'] || '').trim(), mn: '' },
+        // excerpt is what the site quotes; the role/affiliation lives in `role`.
+        excerpt: { en: r.Quote.trim(), mn: '' },
         author: { en: r.Name.trim(), mn: '' },
         role: (r['Position / Role'] || r.Type || '').trim(),
         featuredImage:
