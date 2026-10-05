@@ -182,6 +182,9 @@ async function resolvePhoto(
       manifest
     );
     if (reuploaded) return reuploaded;
+    // The WordPress file is gone (404) or unreachable: never persist a dead hotlink.
+    unmatched.push(name);
+    return null;
   }
   if (!spreadsheetPhoto) unmatched.push(name);
   return spreadsheetPhoto;
