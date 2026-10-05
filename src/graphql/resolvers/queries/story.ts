@@ -91,12 +91,15 @@ export const storyQueries = {
     }
 
     try {
+      const canViewUnpublished = Boolean(context.user);
+
       const story = await context.prisma.story.findFirst({
         where: {
           tenantId: context.tenant?.id,
           deletedAt: null,
           ...(slug && { slug }),
           ...(id && { id }),
+          ...(canViewUnpublished ? {} : { status: 'PUBLISHED' }),
         },
         include: {
           rally: {

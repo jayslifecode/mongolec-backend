@@ -44,6 +44,7 @@ export const rallyMutations = gql`
     conservationActivities: JSON!
     rangerPartnerships: JSON!
     isRecruiting: Boolean
+    isPlaceholder: Boolean
     applicationDeadline: DateTime
     cost: JSON
     depositAmount: JSON
@@ -72,6 +73,7 @@ export const rallyMutations = gql`
     conservationActivities: JSON
     rangerPartnerships: JSON
     isRecruiting: Boolean
+    isPlaceholder: Boolean
     applicationDeadline: DateTime
     cost: JSON
     depositAmount: JSON
@@ -184,6 +186,9 @@ export const rallyMutations = gql`
     # Terms
     agreedToTerms: Boolean!
     agreedToLiability: Boolean!
+
+    # Spam prevention (leave empty)
+    honeypot: String
   }
 
   input RallyApplicationUpdateInput {
@@ -297,6 +302,9 @@ export const rallyMutations = gql`
     # Additional Info
     otherInfo: JSON
     howHeard: String
+
+    # Spam prevention (leave empty)
+    honeypot: String
   }
 
   input ParkNominationUpdateInput {
@@ -515,7 +523,10 @@ export const rallyMutations = gql`
     unsubscribeFromNewsletter(email: String!): MutationResponse!
 
     # Update subscription (user)
-    updateNewsletterSubscription(email: String!, data: SubscriptionUpdateInput!): NewsletterSubscription!
+    updateNewsletterSubscription(
+      email: String!
+      data: SubscriptionUpdateInput!
+    ): NewsletterSubscription!
 
     # Update subscription status (admin)
     changeSubscriptionStatus(email: String!, status: SubscriptionStatus!): NewsletterSubscription!
@@ -536,6 +547,9 @@ export const rallyMutations = gql`
     lastName: String
     interests: JSON
     source: String
+
+    # Spam prevention (leave empty)
+    honeypot: String
   }
 
   input SubscriptionUpdateInput {
