@@ -844,6 +844,7 @@ model Rally {
 
   // Application Settings
   isRecruiting     Boolean  @default(true)
+  isPlaceholder    Boolean  @default(false) // "To be announced" card: no dates/spots/apply
   applicationDeadline DateTime?
 
   // Financial (without Stripe)
