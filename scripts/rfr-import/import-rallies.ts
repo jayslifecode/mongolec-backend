@@ -147,7 +147,10 @@ function mapRally(src: SourceRally, manifest: ReturnType<typeof readManifest>): 
     year ?? new Date().getUTCFullYear()
   );
   const slug = buildSlug(country, year);
-  const { hero, gallery } = rallyImages(manifest, slug);
+  // The Drive folder `Mongolia_2026` is uploaded under the mongolia-2027 prefix (see
+  // discover-assets.ts); the completed Mongolia 2026 rally shares those same photos.
+  const imageSlug = slug === 'mongolia-2026' ? 'mongolia-2027' : slug;
+  const { hero, gallery } = rallyImages(manifest, imageSlug);
   const distance = (src['Travel Distance (km)'] || '').trim();
   const distanceInContent = src['Main Content'].match(/Travel distance:\s*([\d,]+)\s*km/i);
   const km = distance || (distanceInContent ? distanceInContent[1] : '');
