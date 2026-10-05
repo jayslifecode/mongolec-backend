@@ -1,8 +1,22 @@
+// Must be declared before the `authenticate` import below: jest.mock() calls
+// nested inside it() bodies run too late to affect an already-imported
+// module, so the real prisma client was being hit (and hanging) instead of
+// this mock. Hoisting it to module scope lets jest apply it before
+// auth.middleware.ts (and its `prisma` import) is first required.
+jest.mock('../src/database/prisma', () => ({
+  prisma: {
+    user: {
+      findUnique: jest.fn(),
+    },
+  },
+}));
+
 import request from 'supertest';
 import express from 'express';
 import cookieParser from 'cookie-parser';
 import jwt from 'jsonwebtoken';
 import { authenticate, requireAuth } from '../src/auth/auth.middleware';
+import { prisma } from '../src/database/prisma';
 import { AppError } from '../src/types';
 
 describe('Authentication Middleware', () => {
@@ -32,7 +46,8 @@ describe('Authentication Middleware', () => {
         id: 'user-123',
         email: 'test@example.com',
         tenantId: 'tenant-123',
-        roles: [{ role: { name: 'ADMIN' } }],
+        isActive: true,
+        roles: [{ role: { name: 'ADMIN', permissions: [] } }],
         tenant: {
           id: 'tenant-123',
           slug: 'test-tenant',
@@ -41,14 +56,7 @@ describe('Authentication Middleware', () => {
         },
       };
 
-      // Mock Prisma
-      jest.mock('../src/database/prisma', () => ({
-        prisma: {
-          user: {
-            findUnique: jest.fn().mockResolvedValue(mockUser),
-          },
-        },
-      }));
+      (prisma.user.findUnique as jest.Mock).mockResolvedValue(mockUser);
 
       const token = jwt.sign(
         { id: 'user-123', email: 'test@example.com', tenantId: 'tenant-123' },
@@ -78,9 +86,7 @@ describe('Authentication Middleware', () => {
         res.status(200).json({ message: 'success' });
       });
 
-      const response = await request(app)
-        .get('/test')
-        .set('Cookie', [`auth-token=invalid-token`]);
+      const response = await request(app).get('/test').set('Cookie', [`auth-token=invalid-token`]);
 
       expect(response.status).toBe(200);
     });
@@ -95,13 +101,7 @@ describe('Authentication Middleware', () => {
         tenant: { status: 'ACTIVE' },
       };
 
-      jest.mock('../src/database/prisma', () => ({
-        prisma: {
-          user: {
-            findUnique: jest.fn().mockResolvedValue(mockUser),
-          },
-        },
-      }));
+      (prisma.user.findUnique as jest.Mock).mockResolvedValue(mockUser);
 
       const token = jwt.sign(
         { id: 'user-123', email: 'test@example.com', tenantId: 'tenant-123' },

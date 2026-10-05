@@ -1,7 +1,12 @@
 import Joi from 'joi';
 import request from 'supertest';
 import express from 'express';
-import { validateBody, validateQuery, validateRequest, commonSchemas } from '../src/middleware/validation.middleware';
+import {
+  validateBody,
+  validateQuery,
+  validateRequest,
+  commonSchemas,
+} from '../src/middleware/validation.middleware';
 import { AppError } from '../src/types';
 
 describe('Validation Middleware', () => {
@@ -10,8 +15,16 @@ describe('Validation Middleware', () => {
   beforeEach(() => {
     app = express();
     app.use(express.json());
+  });
 
-    // Error handler
+  // Express only forwards a thrown/`next(err)` error to an error-handling
+  // (4-arg) middleware registered AFTER the layer that threw — it never
+  // revisits earlier layers. Registering this in `beforeEach`, before each
+  // test added its routes, meant it was dead code: errors fell through to
+  // Express's default HTML error handler, so `response.body.type` was
+  // always undefined even though `response.status` happened to match
+  // `err.statusCode`. Call this after defining routes in each test instead.
+  function addErrorHandler(): void {
     app.use((err: any, req: any, res: any, next: any) => {
       if (err instanceof AppError) {
         return res.status(err.statusCode).json({
@@ -22,7 +35,7 @@ describe('Validation Middleware', () => {
       }
       res.status(500).json({ error: 'Internal server error' });
     });
-  });
+  }
 
   describe('validateBody', () => {
     it('should pass with valid data', async () => {
@@ -38,12 +51,10 @@ describe('Validation Middleware', () => {
         res.status(200).json({ message: 'validated' });
       });
 
-      const response = await request(app)
-        .post('/test')
-        .send({
-          email: 'TEST@EXAMPLE.COM',
-          password: 'SecurePass123',
-        });
+      const response = await request(app).post('/test').send({
+        email: 'TEST@EXAMPLE.COM',
+        password: 'SecurePass123',
+      });
 
       expect(response.status).toBe(200);
       expect(capturedReq.body.email).toBe('test@example.com'); // Should be lowercased
@@ -58,13 +69,12 @@ describe('Validation Middleware', () => {
       app.post('/test', validateBody(schema), (req, res) => {
         res.status(200).json({ message: 'validated' });
       });
+      addErrorHandler();
 
-      const response = await request(app)
-        .post('/test')
-        .send({
-          email: 'invalid-email',
-          password: 'SecurePass123',
-        });
+      const response = await request(app).post('/test').send({
+        email: 'invalid-email',
+        password: 'SecurePass123',
+      });
 
       expect(response.status).toBe(400);
       expect(response.body.type).toBe('VALIDATION_ERROR');
@@ -80,13 +90,12 @@ describe('Validation Middleware', () => {
       app.post('/test', validateBody(schema), (req, res) => {
         res.status(200).json({ message: 'validated' });
       });
+      addErrorHandler();
 
-      const response = await request(app)
-        .post('/test')
-        .send({
-          email: 'test@example.com',
-          password: 'weak',
-        });
+      const response = await request(app).post('/test').send({
+        email: 'test@example.com',
+        password: 'weak',
+      });
 
       expect(response.status).toBe(400);
       expect(response.body.type).toBe('VALIDATION_ERROR');
@@ -104,12 +113,10 @@ describe('Validation Middleware', () => {
         res.status(200).json({ message: 'validated' });
       });
 
-      const response = await request(app)
-        .post('/test')
-        .send({
-          email: 'test@example.com',
-          unknownField: 'should be removed',
-        });
+      const response = await request(app).post('/test').send({
+        email: 'test@example.com',
+        unknownField: 'should be removed',
+      });
 
       expect(response.status).toBe(200);
       expect(capturedReq.body).toHaveProperty('email');
@@ -142,6 +149,7 @@ describe('Validation Middleware', () => {
       app.get('/test', validateQuery(schema), (req, res) => {
         res.status(200).json({ message: 'validated' });
       });
+      addErrorHandler();
 
       const response = await request(app).get('/test?page=invalid');
 
@@ -192,6 +200,7 @@ describe('Validation Middleware', () => {
       app.put('/test/:id', validateRequest(schemas), (req, res) => {
         res.status(200).json({ message: 'validated' });
       });
+      addErrorHandler();
 
       const response = await request(app)
         .put('/test/test-id')
