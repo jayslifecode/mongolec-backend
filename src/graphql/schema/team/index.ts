@@ -1,4 +1,4 @@
-import { gql } from 'graphql-tag'
+import { gql } from 'graphql-tag';
 
 export const teamSchema = gql`
   type TeamMember {
@@ -92,5 +92,8 @@ export const teamSchema = gql`
     email: String!
     subject: String!
     message: String!
+
+    # Spam prevention (leave empty)
+    honeypot: String
   }
-`
+`;

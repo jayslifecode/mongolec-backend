@@ -1,9 +1,37 @@
+import { assertSubmissionAllowed } from '@/middleware/submission-throttle';
+import { sendEmail, getAdminNotifyEmail } from '@/libs/email';
+import {
+  nominatorConfirmationEmail,
+  adminNominationNotificationEmail,
+} from '@/libs/email-templates/nomination';
+import { createLogger } from '@/utils/logger';
+
+const logger = createLogger('NOMINATION_MUTATIONS');
+
+function getClientIp(context: any): string {
+  return context.req?.ip || context.req?.socket?.remoteAddress || 'unknown';
+}
+
 export const nominationMutations = {
   // Submit a park nomination (public - no auth required)
   submitParkNomination: async (_: any, args: any, context: any) => {
     const { data } = args;
 
+    // Honeypot: bots fill hidden fields. Pretend success without writing anything.
+    if (data.honeypot) {
+      return {
+        success: true,
+        message:
+          'Park nomination submitted successfully! We will review your nomination and contact you soon.',
+        nomination: null,
+      };
+    }
+
+    await assertSubmissionAllowed('submitParkNomination', getClientIp(context));
+
     try {
+      const { honeypot: _honeypot, ...nominationData } = data;
+
       // Check if this partner email already submitted a nomination
       const existing = await context.prisma.parkNomination.findFirst({
         where: {
@@ -20,18 +48,42 @@ export const nominationMutations = {
       // Create nomination
       const nomination = await context.prisma.parkNomination.create({
         data: {
-          ...data,
+          ...nominationData,
           partnerContactEmail: data.partnerContactEmail.toLowerCase(),
           tenantId: context.tenant?.id,
           status: 'PENDING',
         },
       });
 
-      // TODO: Send confirmation email
+      const emailData = {
+        nominatorFirstName: nomination.partnerContactFirstName,
+        nominatorLastName: nomination.partnerContactLastName,
+        nominatorEmail: nomination.partnerContactEmail,
+        country: nomination.country,
+      };
+      void sendEmail({
+        to: nomination.partnerContactEmail,
+        ...nominatorConfirmationEmail(emailData),
+      }).catch((error: unknown) =>
+        logger.error(
+          'Failed to send nominator confirmation email',
+          error instanceof Error ? error : undefined
+        )
+      );
+      void sendEmail({
+        to: getAdminNotifyEmail(),
+        ...adminNominationNotificationEmail(emailData),
+      }).catch((error: unknown) =>
+        logger.error(
+          'Failed to send admin nomination notification email',
+          error instanceof Error ? error : undefined
+        )
+      );
 
       return {
         success: true,
-        message: 'Park nomination submitted successfully! We will review your nomination and contact you soon.',
+        message:
+          'Park nomination submitted successfully! We will review your nomination and contact you soon.',
         nomination,
       };
     } catch (error) {
@@ -51,8 +103,8 @@ export const nominationMutations = {
     }
 
     // Check permissions
-    const hasPermission = context.user.permissions?.some((p: any) =>
-      p.resource === 'nomination' && p.action === 'manage'
+    const hasPermission = context.user.permissions?.some(
+      (p: any) => p.resource === 'nomination' && p.action === 'manage'
     );
 
     if (!hasPermission) {
@@ -102,8 +154,8 @@ export const nominationMutations = {
     }
 
     // Check permissions
-    const hasPermission = context.user.permissions?.some((p: any) =>
-      p.resource === 'nomination' && p.action === 'manage'
+    const hasPermission = context.user.permissions?.some(
+      (p: any) => p.resource === 'nomination' && p.action === 'manage'
     );
 
     if (!hasPermission) {
@@ -160,8 +212,8 @@ export const nominationMutations = {
     }
 
     // Check permissions
-    const hasPermission = context.user.permissions?.some((p: any) =>
-      p.resource === 'nomination' && p.action === 'manage'
+    const hasPermission = context.user.permissions?.some(
+      (p: any) => p.resource === 'nomination' && p.action === 'manage'
     );
 
     if (!hasPermission) {
@@ -219,8 +271,8 @@ export const nominationMutations = {
     }
 
     // Check permissions
-    const hasPermission = context.user.permissions?.some((p: any) =>
-      p.resource === 'nomination' && p.action === 'manage'
+    const hasPermission = context.user.permissions?.some(
+      (p: any) => p.resource === 'nomination' && p.action === 'manage'
     );
 
     if (!hasPermission) {
@@ -268,8 +320,8 @@ export const nominationMutations = {
     }
 
     // Check permissions
-    const hasPermission = context.user.permissions?.some((p: any) =>
-      p.resource === 'nomination' && p.action === 'manage'
+    const hasPermission = context.user.permissions?.some(
+      (p: any) => p.resource === 'nomination' && p.action === 'manage'
     );
 
     if (!hasPermission) {
@@ -317,8 +369,8 @@ export const nominationMutations = {
     }
 
     // Check permissions
-    const hasPermission = context.user.permissions?.some((p: any) =>
-      p.resource === 'nomination' && p.action === 'manage'
+    const hasPermission = context.user.permissions?.some(
+      (p: any) => p.resource === 'nomination' && p.action === 'manage'
     );
 
     if (!hasPermission) {
