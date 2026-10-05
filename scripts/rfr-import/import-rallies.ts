@@ -1,8 +1,13 @@
 /**
  * Rally for Rangers — Rallies importer
  *
- * Source: scripts/rfr-import/data/rallies.json (extracted from RallyForRangers_WebsiteData.xlsx)
- * Plus one manager-requested upcoming rally: Mongolia 2027.
+ * Source: scripts/rfr-import/data/website-data-2026-09.json ("Rallies" sheet — the fresh
+ * 2026-09-22 spreadsheet dump), plus two manager-requested rows not in the spreadsheet:
+ * Mongolia 2027 (real upcoming rally) and International 2027 (placeholder card).
+ *
+ * Media comes from scripts/rfr-import/data/image-manifest.json (written by
+ * upload-images.ts): heroImage/featuredImage = first `rfr/rallies/<slug>/*` entry, gallery =
+ * the rest.
  *
  * Maps each source row to a Prisma `Rally` upsert (keyed on slug + tenantId — no deletes).
  *
@@ -17,11 +22,13 @@ import { PrismaClient, RallyStatus } from '@prisma/client';
 import bcrypt from 'bcryptjs';
 import * as fs from 'fs';
 import * as path from 'path';
+import { kebab } from './lib/text';
+import { readManifest, rallyImages } from './lib/manifest';
 
 const TENANT_SLUG = 'rally-for-rangers';
-const DATA_FILE = path.join(__dirname, 'data', 'rallies.json');
-// Rallies in this year or later are "Upcoming"; everything earlier is "Past" (COMPLETED).
-const UPCOMING_FROM_YEAR = 2027;
+const DATA_FILE = path.join(__dirname, 'data', 'website-data-2026-09.json');
+const MONGOLIA_COST = { amount: 11000, currency: 'USD' };
+const INTERNATIONAL_COST = { amount: 12000, currency: 'USD' };
 
 type SourceRally = {
   Title: string;
@@ -46,6 +53,10 @@ type MappedRally = {
   duration: number;
   status: RallyStatus;
   isRecruiting: boolean;
+  isPlaceholder: boolean;
+  applicationDeadline: Date | null;
+  maxParticipants: number | null;
+  cost: { amount: number; currency: string };
   heroImage: string | null;
   gallery: string[];
   highlights: string[];
@@ -84,11 +95,7 @@ function parseYear(title: string): number | null {
 
 /** Normalize messy source slugs to a clean `<country>-<year>`. */
 function buildSlug(countryRaw: string, year: number | null): string {
-  const country = countryRaw
-    .trim()
-    .toLowerCase()
-    .replace(/[^a-z]+/g, '-')
-    .replace(/^-|-$/g, '');
+  const country = kebab(countryRaw);
   return year ? `${country}-${year}` : country;
 }
 
@@ -120,13 +127,6 @@ function parseDates(content: string, year: number): { start: Date; end: Date; du
   return { start: fallbackStart, end: fallbackEnd, duration: 14 };
 }
 
-function parseGallery(raw: string): string[] {
-  return (raw || '')
-    .split(/[\s,]+/)
-    .map(u => u.trim())
-    .filter(u => /^https?:\/\//i.test(u) && /\.(jpe?g|png|webp|gif)$/i.test(u));
-}
-
 function splitLines(raw: string): string[] {
   return (raw || '')
     .split(/\r?\n/)
@@ -134,7 +134,11 @@ function splitLines(raw: string): string[] {
     .filter(s => s.length > 0);
 }
 
-function mapRally(src: SourceRally): MappedRally {
+function costFor(country: string): { amount: number; currency: string } {
+  return /mongolia/i.test(country) ? MONGOLIA_COST : INTERNATIONAL_COST;
+}
+
+function mapRally(src: SourceRally, manifest: ReturnType<typeof readManifest>): MappedRally {
   // Year may live in the title, the slug ("peru-2026"), or the Date Added column.
   const year = parseYear(src.Title) ?? parseYear(src['Slug (URL)']) ?? parseYear(src['Date Added']);
   const country = (src['Country / Rally Name'] || src.Title.split('-')[0]).trim();
@@ -142,14 +146,11 @@ function mapRally(src: SourceRally): MappedRally {
     src['Main Content'],
     year ?? new Date().getUTCFullYear()
   );
-  const gallery = parseGallery(src['Gallery Image URLs']);
+  const slug = buildSlug(country, year);
+  const { hero, gallery } = rallyImages(manifest, slug);
   const distance = (src['Travel Distance (km)'] || '').trim();
   const distanceInContent = src['Main Content'].match(/Travel distance:\s*([\d,]+)\s*km/i);
   const km = distance || (distanceInContent ? distanceInContent[1] : '');
-
-  // Per the manager's content doc, only Mongolia 2027 (and later) is "Upcoming"; everything
-  // through 2026 is treated as a Past rally.
-  const isUpcoming = year !== null && year >= UPCOMING_FROM_YEAR;
 
   const highlights: string[] = [];
   if (km) highlights.push(`Traveled approximately ${km} km`);
@@ -163,16 +164,22 @@ function mapRally(src: SourceRally): MappedRally {
   const locationEn = placeName ? `${placeName}, ${country}` : country;
 
   return {
-    slug: buildSlug(country, year),
+    slug,
     title: { en: `${country} ${year ?? ''}`.trim(), mn: '' },
     description: { en: src['Main Content'].trim(), mn: '' },
     location: { en: locationEn, mn: '' },
     startDate: start,
     endDate: end,
     duration,
-    status: isUpcoming ? RallyStatus.UPCOMING : RallyStatus.COMPLETED,
-    isRecruiting: isUpcoming,
-    heroImage: gallery[0] ?? null,
+    // Every spreadsheet rally is in the past relative to the 2027 launch slate: completed,
+    // not recruiting, real (non-placeholder).
+    status: RallyStatus.COMPLETED,
+    isRecruiting: false,
+    isPlaceholder: false,
+    applicationDeadline: null,
+    maxParticipants: null,
+    cost: costFor(country),
+    heroImage: hero,
     gallery,
     highlights,
     impactOverview: { en: (src['Risk Summary'] || src['More Info / Park Detail']).trim(), mn: '' },
@@ -182,24 +189,30 @@ function mapRally(src: SourceRally): MappedRally {
   };
 }
 
-/** Manager-requested upcoming rally not present in the spreadsheet. */
-function mongolia2027(): MappedRally {
+/** Manager-requested upcoming rally not present in the spreadsheet. Hero/gallery come from the
+ *  `Mongolia_2026` Drive folder (manifest slug `mongolia-2027`, see discover-assets.ts). */
+function mongolia2027(manifest: ReturnType<typeof readManifest>): MappedRally {
+  const { hero, gallery } = rallyImages(manifest, 'mongolia-2027');
   return {
     slug: 'mongolia-2027',
     title: { en: 'Mongolia 2027', mn: 'Монгол 2027' },
     description: {
-      en: 'Mongolia 2027 — details coming soon. Ride across Mongolia and personally deliver a new motorcycle to a park ranger on the front lines of conservation. More 2027 rallies will be announced soon.',
+      en: 'Ride across Mongolia and personally deliver a new motorcycle to a park ranger on the front lines of conservation. Full itinerary coming soon.',
       mn: '',
     },
     location: { en: 'Mongolia', mn: 'Монгол' },
-    startDate: new Date(Date.UTC(2027, 6, 15)),
-    endDate: new Date(Date.UTC(2027, 6, 28)),
+    startDate: new Date(Date.UTC(2027, 7, 1)),
+    endDate: new Date(Date.UTC(2027, 7, 14)),
     duration: 14,
     status: RallyStatus.UPCOMING,
     isRecruiting: true,
-    heroImage: null,
-    gallery: [],
-    highlights: ['More 2027 rallies coming soon'],
+    isPlaceholder: false,
+    applicationDeadline: new Date(Date.UTC(2027, 4, 1)),
+    maxParticipants: 15,
+    cost: MONGOLIA_COST,
+    heroImage: hero,
+    gallery,
+    highlights: [],
     impactOverview: {
       en: 'Each rally delivers new motorcycles directly to park rangers, extending their patrol range and protecting vast wild landscapes.',
       mn: '',
@@ -213,15 +226,44 @@ function mongolia2027(): MappedRally {
   };
 }
 
+/** "To be announced soon" placeholder card — no dates, no spots, no apply CTA. */
+function international2027(): MappedRally {
+  return {
+    slug: 'international-2027',
+    title: { en: 'International Rally 2027', mn: '' },
+    description: { en: 'To be announced soon.', mn: '' },
+    location: { en: 'To be announced', mn: '' },
+    startDate: new Date(Date.UTC(2027, 11, 31)),
+    endDate: new Date(Date.UTC(2027, 11, 31)),
+    duration: 0,
+    status: RallyStatus.UPCOMING,
+    isRecruiting: false,
+    isPlaceholder: true,
+    applicationDeadline: null,
+    maxParticipants: null,
+    cost: INTERNATIONAL_COST,
+    heroImage: null,
+    gallery: [],
+    highlights: [],
+    impactOverview: { en: '', mn: '' },
+    conservationActivities: [],
+    rangerPartnerships: { en: '', mn: '' },
+    targetAudience: DEFAULT_TARGET_AUDIENCE,
+  };
+}
+
 function loadMapped(): MappedRally[] {
-  const source: SourceRally[] = JSON.parse(fs.readFileSync(DATA_FILE, 'utf-8'));
+  const sheets = JSON.parse(fs.readFileSync(DATA_FILE, 'utf-8'));
+  const source: SourceRally[] = sheets['Rallies'];
+  const manifest = readManifest();
   const hasYear = (r: SourceRally) =>
     parseYear(r.Title) ?? parseYear(r['Slug (URL)']) ?? parseYear(r['Date Added']);
-  const mapped = source.filter(r => r.Title && hasYear(r)).map(mapRally);
-  // De-dup by slug (last wins), then add Mongolia 2027.
+  const mapped = source.filter(r => r.Title && hasYear(r)).map(r => mapRally(r, manifest));
+  // De-dup by slug (last wins), then add the two manager-requested 2027 rows.
   const bySlug = new Map<string, MappedRally>();
   for (const r of mapped) bySlug.set(r.slug, r);
-  bySlug.set('mongolia-2027', mongolia2027());
+  bySlug.set('mongolia-2027', mongolia2027(manifest));
+  bySlug.set('international-2027', international2027());
   return Array.from(bySlug.values()).sort((a, b) => a.slug.localeCompare(b.slug));
 }
 
@@ -236,9 +278,12 @@ async function main() {
     console.log(`\n📋 ${rallies.length} rallies mapped (offline preview, no DB):\n`);
     for (const r of rallies) {
       console.log(
-        `• ${r.slug.padEnd(16)} ${r.status.padEnd(10)} ${r.startDate.toISOString().slice(0, 10)}→${r.endDate
+        `• ${r.slug.padEnd(22)} ${r.status.padEnd(10)} ${r.startDate.toISOString().slice(0, 10)}→${r.endDate
           .toISOString()
-          .slice(0, 10)}  imgs:${r.gallery.length}  "${r.title.en}"`
+          .slice(
+            0,
+            10
+          )}  imgs:${r.gallery.length + (r.heroImage ? 1 : 0)}  cost:${r.cost.amount}  "${r.title.en}"`
       );
     }
     console.log('\nSample (first record):\n', JSON.stringify(rallies[0], null, 2));
@@ -264,7 +309,7 @@ async function main() {
     console.log(`\n📋 Plan (${rallies.length} rallies):`);
     for (const r of rallies) {
       console.log(
-        `  ${existingSlugs.has(r.slug) ? 'UPDATE' : 'CREATE'}  ${r.slug.padEnd(16)} ${r.status}`
+        `  ${existingSlugs.has(r.slug) ? 'UPDATE' : 'CREATE'}  ${r.slug.padEnd(22)} ${r.status}`
       );
     }
 
@@ -301,7 +346,12 @@ async function main() {
         duration: r.duration,
         status: r.status,
         isRecruiting: r.isRecruiting,
+        isPlaceholder: r.isPlaceholder,
+        applicationDeadline: r.applicationDeadline,
+        maxParticipants: r.maxParticipants,
+        cost: r.cost,
         heroImage: r.heroImage,
+        featuredImage: r.heroImage,
         gallery: r.gallery,
         highlights: r.highlights,
         impactOverview: r.impactOverview,

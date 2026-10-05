@@ -1,25 +1,31 @@
 /**
  * Rally for Rangers — Testimonials importer
  *
- * Source: scripts/rfr-import/data/testimonials.json ("Testimonials" sheet).
- * Creates Story records (type TESTIMONIAL, status PUBLISHED) which the homepage carousel reads
- * via getPublishedStories(type: TESTIMONIAL). Archives the 3 seed placeholder testimonials so
- * only the real quotes show.
+ * Source: scripts/rfr-import/data/website-data-2026-09.json ("Testimonials" sheet — the fresh
+ * 2026-09-22 spreadsheet dump). Creates Story records (type TESTIMONIAL, status PUBLISHED)
+ * which the homepage carousel reads via getPublishedStories(type: TESTIMONIAL). Archives the
+ * 3 seed placeholder testimonials so only the real quotes show.
+ *
+ * featuredImage is matched from scripts/rfr-import/data/image-manifest.json
+ * (`rfr/testimonials/*`) by normalised name; falls back to the spreadsheet Photo URL.
  *
  * Idempotent: upsert by (slug, tenantId). No deletes.
  *
- * Usage (in the backend container):
- *   bun run scripts/rfr-import/import-testimonials.ts           # dry run
- *   bun run scripts/rfr-import/import-testimonials.ts --commit  # apply
- *   bun run scripts/rfr-import/import-testimonials.ts --print   # offline preview
+ * Usage:
+ *   npx ts-node -r dotenv/config scripts/rfr-import/import-testimonials.ts --print   # offline preview
+ *   npx ts-node -r dotenv/config scripts/rfr-import/import-testimonials.ts           # dry run
+ *   npx ts-node -r dotenv/config scripts/rfr-import/import-testimonials.ts --commit  # apply
  */
 import { PrismaClient } from '@prisma/client';
 import bcrypt from 'bcryptjs';
 import * as fs from 'fs';
 import * as path from 'path';
+import { buildBucketIndex, matchPortrait } from './lib/photo-match';
+import { readManifest } from './lib/manifest';
+import { kebab } from './lib/text';
 
 const TENANT_SLUG = 'rally-for-rangers';
-const DATA_FILE = path.join(__dirname, 'data', 'testimonials.json');
+const DATA_FILE = path.join(__dirname, 'data', 'website-data-2026-09.json');
 // Placeholder testimonials from the original sample seed — archive so they drop off the carousel.
 const PLACEHOLDER_SLUGS = [
   'michael-torres-mongolia-2025',
@@ -35,30 +41,27 @@ type Row = {
   'Photo URL': string;
 };
 
-function kebab(s: string): string {
-  return s
-    .trim()
-    .toLowerCase()
-    .normalize('NFD')
-    .replace(/[̀-ͯ]/g, '')
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-|-$/g, '');
-}
-
 function mapRows() {
-  const rows: Row[] = JSON.parse(fs.readFileSync(DATA_FILE, 'utf-8'));
+  const sheets = JSON.parse(fs.readFileSync(DATA_FILE, 'utf-8'));
+  const rows: Row[] = sheets['Testimonials'];
+  const manifest = readManifest();
+  const index = buildBucketIndex(manifest, 'testimonials');
   return rows
     .filter(r => r.Name && r.Quote)
-    .map((r, i) => ({
-      slug: `${kebab(r.Name)}-testimonial`,
-      title: { en: r.Name.trim(), mn: '' },
-      content: { en: r.Quote.trim(), mn: '' },
-      excerpt: { en: (r['Position / Role'] || '').trim(), mn: '' },
-      author: { en: r.Name.trim(), mn: '' },
-      role: (r['Position / Role'] || r.Type || '').trim(),
-      featuredImage: /^https?:\/\//i.test(r['Photo URL'] || '') ? r['Photo URL'].trim() : null,
-      displayOrder: i,
-    }));
+    .map((r, i) => {
+      const rawPhoto = (r['Photo URL'] || '').trim();
+      return {
+        slug: `${kebab(r.Name)}-testimonial`,
+        title: { en: r.Name.trim(), mn: '' },
+        content: { en: r.Quote.trim(), mn: '' },
+        excerpt: { en: (r['Position / Role'] || '').trim(), mn: '' },
+        author: { en: r.Name.trim(), mn: '' },
+        role: (r['Position / Role'] || r.Type || '').trim(),
+        featuredImage:
+          matchPortrait(r.Name, index) ?? (/^https?:\/\//i.test(rawPhoto) ? rawPhoto : null),
+        displayOrder: i,
+      };
+    });
 }
 
 async function main() {
