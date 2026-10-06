@@ -17,6 +17,7 @@ import { newsletterQueries } from './queries/newsletter';
 import { teamQueries } from './queries/team';
 import { rangerQueries } from './queries/ranger';
 import { participantQueries } from './queries/participant';
+import { tierFor } from '@/config/rider-tiers';
 
 // Import mutations
 import { authMutations } from './mutations/auth';
@@ -88,6 +89,71 @@ const Tenant = {
 const Rally = {
   // Old records may have null before @default(0) was added
   currentParticipants: (parent: any) => parent.currentParticipants ?? 0,
+
+  // Participant <-> Rally link fields. Lazily fetched (not eager-included on every rally
+  // query) since they're only needed on a single rally's detail page.
+  participants: async (parent: any, _args: any, context: any) => {
+    const links = await context.prisma.participantRally.findMany({
+      where: { rallyId: parent.id, participant: { deletedAt: null } },
+      include: { participant: { include: { rallies: true } } },
+    });
+    return links.map((l: any) => ({ participant: l.participant, year: l.year, role: l.role }));
+  },
+  participantCount: (parent: any, _args: any, context: any) =>
+    context.prisma.participantRally.count({
+      where: { rallyId: parent.id, participant: { deletedAt: null } },
+    }),
+};
+
+/**
+ * Participant field resolvers: `rallyCount`/`tier` are computed (never stored), and
+ * `rallyYears`/`rallies` derive from the `rallies` relation. Query resolvers eager-include
+ * `rallies.rally` (see `queries/participant.ts`) so this never issues a per-participant query
+ * in list results; it only falls back to a DB read when a Participant arrives without that
+ * relation already loaded (e.g. nested under `Rally.participants`).
+ */
+const Participant = {
+  rallyCount: (parent: any) => parent._count?.rallies ?? parent.rallies?.length ?? 0,
+  tier: (parent: any) => tierFor(parent._count?.rallies ?? parent.rallies?.length ?? 0),
+  rallyYears: (parent: any) =>
+    (parent.rallies ?? [])
+      .map((r: any) => r.year)
+      .filter((y: unknown): y is number => y !== null && y !== undefined),
+  rallies: async (parent: any, _args: any, context: any) => {
+    let links = parent.rallies;
+    // Fallback: only hit when the relation wasn't eager-loaded by the caller.
+    if (!links || (links.length > 0 && links[0].rally === undefined)) {
+      links = await context.prisma.participantRally.findMany({
+        where: { participantId: parent.id },
+        include: {
+          rally: {
+            select: {
+              id: true,
+              slug: true,
+              title: true,
+              startDate: true,
+              endDate: true,
+              heroImage: true,
+              status: true,
+              location: true,
+              stories: { select: { slug: true, status: true } },
+            },
+          },
+        },
+      });
+    }
+    const isAnonymous = !context.user;
+    return links.map((pr: any) => ({
+      year: pr.year,
+      role: pr.role,
+      rally: {
+        ...pr.rally,
+        stories: isAnonymous
+          ? (pr.rally.stories ?? []).filter((s: any) => s.status === 'PUBLISHED')
+          : pr.rally.stories,
+      },
+    }));
+  },
 };
 
 /**
@@ -102,6 +168,7 @@ export const resolvers = {
   // Type Resolvers
   Tenant,
   Rally,
+  Participant,
 
   // Root Query
   Query: {

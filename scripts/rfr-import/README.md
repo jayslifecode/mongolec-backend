@@ -9,8 +9,10 @@ Spec: `rally-for-rangers-website/docs/superpowers/specs/2026-10-06-rfr-launch-de
 ## Prerequisites
 
 1. **Database schema** — the `rallies`, `stories`, `rangers`, `participants`,
-   `participant_rallies` and `team_members` tables (and the `Rally.isPlaceholder` column) must
-   exist. Run the idempotent SQL once per environment:
+   `participant_rallies` and `team_members` tables (and the `Rally.isPlaceholder`,
+   `Participant.slug`/`Participant.honoraryTitle` columns — the script also backfills a slug
+   for any pre-existing row before adding the unique index, so it's safe to run against a DB
+   that already has rider rows) must exist. Run the idempotent SQL once per environment:
    ```bash
    psql "$DATABASE_URL" -f create-rally-tables.sql
    ```
@@ -40,6 +42,10 @@ npx ts-node -r dotenv/config scripts/rfr-import/upload-images.ts
 npx ts-node -r dotenv/config scripts/rfr-import/import-rallies.ts --commit
 
 # 3. Riders & rangers — portraits from the manifest, re-uploads WordPress-only photos into B2.
+#    Merges every " - YYYY" sighting of the same rider into one Participant (slug + rally
+#    links derived from both the sheet and the Rider_Portraits folders), deletes any stale
+#    rfr-rider-* rows the merge supersedes, and prints a summary (merged count, riders per
+#    rally, top riders by rally count).
 npx ts-node -r dotenv/config scripts/rfr-import/import-people.ts --commit
 
 # 4. Team — 7 core members from staff-bios.txt + spreadsheet board/advisor rows (inactive).
@@ -76,14 +82,24 @@ docker exec -it mongolec-backend sh -c '
 `upload-images.ts` skips any B2 key that already exists, so re-running it in prod after the
 local run is safe and cheap (every object will already be there).
 
+`import-people.ts` also walks the `Rider_Portraits/<Year>_<Country>[...]` Drive folders
+(default `~/Downloads/Website 2/Rider_Portraits`, override with `RFR_PORTRAITS_DIR`) to derive
+rally links the sheet doesn't have (bhutan-2022, peru-2022, namibia-2023, mongolia-2019,
+mongolia-2023, bhutan-2024). If that path doesn't exist inside the container the scan is
+skipped silently (no error) and those links are simply not created — either mount/copy the
+`Rider_Portraits` folder into the container and set `RFR_PORTRAITS_DIR`, or run
+`import-people.ts --commit` once locally (as above) and replicate the resulting
+`participants`/`participant_rallies` rows into prod instead of re-deriving them there.
+
 ## Layout
 
 - `upload-images.ts` — walks the Drive export, resizes (`sips`) + converts to WebP (`cwebp`),
   uploads to B2, writes `data/image-manifest.json`.
 - `import-rallies.ts`, `import-people.ts`, `import-team.ts`, `import-testimonials.ts`,
   `import-stories.ts` — one importer per content type.
-- `lib/` — shared, mostly-pure helpers (name/slug normalisation, manifest IO, asset discovery,
-  image processing, B2 upload, portrait matching, WordPress-photo re-upload, story block
-  types/builders) used by more than one importer, kept small and unit-testable.
+- `lib/` — shared, mostly-pure helpers (name/slug normalisation, rider-sighting merging,
+  portrait-folder scanning, manifest IO, asset discovery, image processing, B2 upload,
+  portrait matching, WordPress-photo re-upload, story block types/builders) used by more than
+  one importer, kept small and unit-testable (`lib/*.test.ts`, run via `npm test`).
 - `data/` — spreadsheet dumps (`website-data-2026-09.json`, `staff-bios.txt`) and the
   generated `image-manifest.json`.

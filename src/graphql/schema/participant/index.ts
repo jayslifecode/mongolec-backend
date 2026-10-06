@@ -1,18 +1,47 @@
 import { gql } from 'graphql-tag';
 
 export const participantSchema = gql`
+  enum RiderTier {
+    RIDER
+    RETURNING
+    VETERAN
+    LEGEND
+  }
+
+  type ParticipantRallyLink {
+    rally: Rally!
+    year: Int
+    role: String
+  }
+
+  type RallyParticipantLink {
+    participant: Participant!
+    year: Int
+    role: String
+  }
+
   type Participant {
     id: ID!
     firstName: String!
     lastName: String!
+    slug: String!
+    honoraryTitle: String
     photo: String
     country: String!
     bio: String
     isActive: Boolean!
     displayOrder: Int!
     rallyYears: [Int!]!
+    rallyCount: Int!
+    tier: RiderTier!
+    rallies: [ParticipantRallyLink!]!
     createdAt: DateTime!
     updatedAt: DateTime!
+  }
+
+  extend type Rally {
+    participants: [RallyParticipantLink!]!
+    participantCount: Int!
   }
 
   type PaginatedParticipants {
@@ -21,8 +50,14 @@ export const participantSchema = gql`
   }
 
   extend type Query {
-    getParticipants(limit: Int, page: Int, isActive: Boolean): PaginatedParticipants!
-    getParticipant(id: ID!): Participant
+    getParticipants(
+      search: String
+      tier: RiderTier
+      limit: Int
+      page: Int
+      isActive: Boolean
+    ): PaginatedParticipants!
+    getParticipant(slug: String, id: ID): Participant
   }
 
   extend type Mutation {
@@ -39,7 +74,9 @@ export const participantSchema = gql`
     bio: String
     displayOrder: Int
     isActive: Boolean
-    rallyYears: [Int!]
+    slug: String
+    honoraryTitle: String
+    rallyIds: [ID!]
   }
 
   input UpdateParticipantInput {
@@ -50,6 +87,8 @@ export const participantSchema = gql`
     bio: String
     displayOrder: Int
     isActive: Boolean
-    rallyYears: [Int!]
+    slug: String
+    honoraryTitle: String
+    rallyIds: [ID!]
   }
 `;

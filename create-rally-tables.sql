@@ -271,3 +271,18 @@ CREATE TABLE IF NOT EXISTS team_members (
 
 -- 2026-10-06: placeholder rallies ("To be announced soon" cards)
 ALTER TABLE rallies ADD COLUMN IF NOT EXISTS "isPlaceholder" BOOLEAN NOT NULL DEFAULT false;
+
+-- 2026-10-06: rider profiles — slugs + honorary title override (idempotent, backfill-safe)
+ALTER TABLE participants ADD COLUMN IF NOT EXISTS slug TEXT;
+ALTER TABLE participants ADD COLUMN IF NOT EXISTS "honoraryTitle" TEXT;
+
+-- Backfill any existing rows before the unique index can be created: kebab(firstName lastName)
+-- plus a 6-char id suffix to guarantee uniqueness even for same-named riders.
+UPDATE participants
+SET slug = regexp_replace(
+             regexp_replace(lower(trim(("firstName" || ' ' || "lastName"))), '[^a-z0-9]+', '-', 'g'),
+             '(^-+|-+$)', '', 'g'
+           ) || '-' || right(id, 6)
+WHERE slug IS NULL;
+
+CREATE UNIQUE INDEX IF NOT EXISTS participants_slug_tenant_idx ON participants (slug, "tenantId");
