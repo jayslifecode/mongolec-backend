@@ -201,10 +201,20 @@ export const writeRateLimit = rateLimit({
   keyPrefix: 'write',
 });
 
-// GraphQL-specific rate limiter
+// GraphQL-specific rate limiter.
+// Public sites (and Vercel's server-side fetches, which share a small IP pool)
+// issue many queries per page view, so the ceiling is configurable and high.
+const GRAPHQL_RATE_LIMIT_MAX_DEFAULT = 2000;
+const GRAPHQL_RATE_LIMIT_WINDOW_MS_DEFAULT = 15 * 60 * 1000;
+
+const parsePositiveInt = (value: string | undefined, fallback: number): number => {
+  const parsed = Number.parseInt(value ?? '', 10);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+};
+
 export const graphqlRateLimit = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  maxRequests: 100,
+  windowMs: parsePositiveInt(process.env.GRAPHQL_RATE_LIMIT_WINDOW_MS, GRAPHQL_RATE_LIMIT_WINDOW_MS_DEFAULT),
+  maxRequests: parsePositiveInt(process.env.GRAPHQL_RATE_LIMIT_MAX, GRAPHQL_RATE_LIMIT_MAX_DEFAULT),
   keyPrefix: 'graphql',
 });
 

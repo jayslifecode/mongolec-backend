@@ -3,13 +3,23 @@ import { Prisma } from '@prisma/client';
 export const rallyQueries = {
   // Get all rallies with pagination and filters
   getRallies: async (_: any, args: any, context: any) => {
-    const { page = 1, limit = 20, status, search, orderBy = 'createdAt', orderDirection = 'desc', tenantId: tenantIdArg } = args;
+    const {
+      page = 1,
+      limit = 20,
+      status,
+      search: _search, // not yet implemented — JSON field search needs raw SQL
+      orderBy = 'createdAt',
+      orderDirection = 'desc',
+      tenantId: tenantIdArg,
+    } = args;
     const isSuperAdmin = context.user?.roles?.includes('super_admin');
 
     try {
       // Build where clause
       const tenantFilter = isSuperAdmin
-        ? tenantIdArg ? { tenantId: tenantIdArg } : {}
+        ? tenantIdArg
+          ? { tenantId: tenantIdArg }
+          : {}
         : { tenantId: context.tenant?.id };
 
       const where: Prisma.RallyWhereInput = {
@@ -270,9 +280,8 @@ export const rallyQueries = {
           deletedAt: null,
           isRecruiting: true,
           status: { in: ['UPCOMING', 'ONGOING'] },
-          applicationDeadline: {
-            gte: new Date(),
-          },
+          isPlaceholder: false,
+          OR: [{ applicationDeadline: null }, { applicationDeadline: { gte: new Date() } }],
         },
         orderBy: { startDate: 'asc' },
         include: {

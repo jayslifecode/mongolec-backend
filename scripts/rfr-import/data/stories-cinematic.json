@@ -1,0 +1,68 @@
+{
+  "mongolia-2023": {
+    "heroSubtitle": "The steppe awaits — our first chapter",
+    "statementEyebrow": "Mongolia 2023 — where it all began",
+    "statementText": "Dust in our wake, purpose in our hearts.",
+    "splitHeading": "National Parks of Southern Mongolia",
+    "splitText": "Rally for Rangers donated motorcycles to the Southern Mongolian National Parks, riding roughly 1,800 km across the steppe to reach the rangers who protect it.",
+    "splitImage": "/rallies/2023/DJI_0351.jpg",
+    "horizontalImages": [
+      "/rallies/2023/IMG_2445.jpg",
+      "/rallies/2023/IMG_2512.jpg",
+      "/rallies/2023/DJI_0360.jpg",
+      "/rallies/2023/IMG_2630_copy.jpg",
+      "/rallies/2023/IMG_2672_copy.jpg",
+      "/rallies/2023/DJI_0458.jpg"
+    ],
+    "chapters": [
+      { "day": "Day 01", "title": "Ulaanbaatar", "image": "/rallies/2023/IMG_2393.jpg" },
+      { "day": "Day 02", "title": "The Open Road", "image": "/rallies/2023/IMG_2445.jpg" },
+      { "day": "Day 03", "title": "Into the Steppe", "image": "/rallies/2023/IMG_2630_copy.jpg" },
+      { "day": "Day 08", "title": "The Handover", "image": "/rallies/2023/IMG_4859_copy.jpg" }
+    ],
+    "ridersTitle": "The 2023 Crew",
+    "ridersPortraits": [
+      "/rallies/2023/IMG_2500.jpg",
+      "/rallies/2023/IMG_2518.jpg",
+      "/rallies/2023/IMG_2562_copy.jpg",
+      "/rallies/2023/IMG_2577_copy.jpg"
+    ],
+    "quoteText": "We came to give. We stayed to belong.",
+    "quoteMeta": "The 2023 crew",
+    "closingTitle": "The road never ends, it only continues",
+    "closingSubtitle": "See you in 2024"
+  },
+  "mongolia-2024": {
+    "heroSubtitle": "We came back — year two begins",
+    "statementEyebrow": "Mongolia 2024 — further, harder, better",
+    "statementText": "The mission grew. The bond deepened.",
+    "splitHeading": "10 Years of Rally for Rangers",
+    "splitText": "A Decade of Impact! In honor of this momentous occasion, Rally for Rangers returned to Lake Hovsgol National Park to donate 15 motorcycles — the very place where the spirit of Rally for Rangers was born.\n\nLake Hovsgol, also known as the \"Mother Sea,\" holds 70% of Mongolia's freshwater and 1% of the Earth's total freshwater reserve. Established in 1992, this pristine park spans a colossal 1.2 million hectares — surpassing the grandeur of Yellowstone National Park in the US.",
+    "splitImage": "/rallies/2024/DJI_20240725145848_0051_D-2.jpg",
+    "horizontalImages": [
+      "/rallies/2024/FRF01306-2.jpg",
+      "/rallies/2024/FRF01314-2.jpg",
+      "/rallies/2024/DJI_20240725150000_0062_D-2.jpg",
+      "/rallies/2024/FRF01340-2.jpg",
+      "/rallies/2024/FRF02939-2.jpg",
+      "/rallies/2024/FRF03186-2.jpg"
+    ],
+    "chapters": [
+      { "day": "Day 01", "title": "Ulaanbaatar", "image": "/rallies/2024/FRF00098.jpg" },
+      { "day": "Day 02", "title": "Into the Steppe", "image": "/rallies/2024/FRF01314-2.jpg" },
+      { "day": "Day 05", "title": "Under the Stars", "image": "/rallies/2024/FRF01347-2.jpg" },
+      { "day": "Day 07", "title": "The Handover", "image": "/rallies/2024/FRF03186-2.jpg" }
+    ],
+    "ridersTitle": "The 2024 Crew",
+    "ridersPortraits": [
+      "/rallies/2024/FRF01318-2.jpg",
+      "/rallies/2024/FRF01321-2.jpg",
+      "/rallies/2024/FRF01326-2.jpg",
+      "/rallies/2024/FRF01328-2.jpg"
+    ],
+    "quoteText": "Year one you find the road. Year two you become it.",
+    "quoteMeta": "The 2024 crew",
+    "closingTitle": "Two years, one mission, endless road",
+    "closingSubtitle": "The story continues in 2025"
+  }
+}

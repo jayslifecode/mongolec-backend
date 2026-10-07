@@ -36,6 +36,7 @@ export const rallyTypeDefs = gql`
 
     # Application Settings
     isRecruiting: Boolean!
+    isPlaceholder: Boolean!
     applicationDeadline: DateTime
 
     # Financial

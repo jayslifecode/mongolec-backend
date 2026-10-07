@@ -1,7 +1,28 @@
+import { assertSubmissionAllowed } from '@/middleware/submission-throttle';
+import { sendEmail } from '@/libs/email';
+import { newsletterWelcomeEmail } from '@/libs/email-templates/newsletter';
+import { createLogger } from '@/utils/logger';
+
+const logger = createLogger('NEWSLETTER_MUTATIONS');
+
+function getClientIp(context: any): string {
+  return context.req?.ip || context.req?.socket?.remoteAddress || 'unknown';
+}
+
 export const newsletterMutations = {
   // Subscribe to newsletter (public - no auth required)
   subscribeToNewsletter: async (_: any, args: any, context: any) => {
     const { data } = args;
+
+    // Honeypot: bots fill hidden fields. Pretend success without writing anything.
+    if (data.honeypot) {
+      return {
+        success: true,
+        message: 'Thank you for subscribing to our newsletter!',
+      };
+    }
+
+    await assertSubmissionAllowed('subscribeToNewsletter', getClientIp(context));
 
     try {
       // Check if email already subscribed
@@ -47,7 +68,15 @@ export const newsletterMutations = {
         },
       });
 
-      // TODO: Send confirmation email
+      void sendEmail({
+        to: subscription.email,
+        ...newsletterWelcomeEmail({ firstName: subscription.firstName }),
+      }).catch((error: unknown) =>
+        logger.error(
+          'Failed to send newsletter welcome email',
+          error instanceof Error ? error : undefined
+        )
+      );
 
       return {
         success: true,
@@ -115,8 +144,8 @@ export const newsletterMutations = {
     }
 
     // Check permissions
-    const hasPermission = context.user.permissions?.some((p: any) =>
-      p.resource === 'newsletter' && p.action === 'manage'
+    const hasPermission = context.user.permissions?.some(
+      (p: any) => p.resource === 'newsletter' && p.action === 'manage'
     );
 
     if (!hasPermission) {
@@ -141,7 +170,8 @@ export const newsletterMutations = {
 
       return subscription;
     } catch (error) {
-      if (error instanceof Error && error.message === 'Newsletter subscription not found') throw error;
+      if (error instanceof Error && error.message === 'Newsletter subscription not found')
+        throw error;
       console.error('Error updating newsletter subscription:', error);
       throw new Error('Failed to update newsletter subscription');
     }
@@ -157,8 +187,8 @@ export const newsletterMutations = {
     }
 
     // Check permissions
-    const hasPermission = context.user.permissions?.some((p: any) =>
-      p.resource === 'newsletter' && p.action === 'manage'
+    const hasPermission = context.user.permissions?.some(
+      (p: any) => p.resource === 'newsletter' && p.action === 'manage'
     );
 
     if (!hasPermission) {
@@ -186,7 +216,8 @@ export const newsletterMutations = {
         message: 'Newsletter subscription deleted successfully',
       };
     } catch (error) {
-      if (error instanceof Error && error.message === 'Newsletter subscription not found') throw error;
+      if (error instanceof Error && error.message === 'Newsletter subscription not found')
+        throw error;
       console.error('Error deleting newsletter subscription:', error);
       throw new Error('Failed to delete newsletter subscription');
     }

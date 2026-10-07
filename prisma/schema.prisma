@@ -987,6 +987,7 @@ model Rally {
 
   // Application Settings
   isRecruiting     Boolean  @default(true)
+  isPlaceholder    Boolean  @default(false) // "To be announced" card: no dates/spots/apply
   applicationDeadline DateTime?
 
   // Financial (without Stripe)
@@ -1479,24 +1480,27 @@ model Ranger {
 }
 
 model Participant {
-  id           String             @id @default(cuid())
-  firstName    String
-  lastName     String
-  photo        String?
-  country      String
-  bio          String?            @db.Text
-  isActive     Boolean            @default(true)
-  displayOrder Int                @default(0)
+  id            String             @id @default(cuid())
+  firstName     String
+  lastName      String
+  slug          String
+  honoraryTitle String?
+  photo         String?
+  country       String
+  bio           String?            @db.Text
+  isActive      Boolean            @default(true)
+  displayOrder  Int                @default(0)
 
-  rallies      ParticipantRally[]
+  rallies       ParticipantRally[]
 
-  tenantId     String
-  tenant       Tenant             @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  createdAt    DateTime           @default(now())
-  updatedAt    DateTime           @updatedAt
-  deletedAt    DateTime?
+  tenantId      String
+  tenant        Tenant             @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  createdAt     DateTime           @default(now())
+  updatedAt     DateTime           @updatedAt
+  deletedAt     DateTime?
 
   @@index([tenantId, isActive])
+  @@unique([slug, tenantId], map: "participants_slug_tenant_idx")
   @@map("participants")
 }
 

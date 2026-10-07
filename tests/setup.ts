@@ -17,6 +17,12 @@ global.console = {
 };
 
 // Mock Redis
+//
+// Must mirror the full public interface of the real `RedisClient` singleton
+// (src/database/redis.ts): most middleware calls `redisClient.getClient()`
+// for raw ioredis commands, but `auth.middleware.ts` and the auth resolver
+// call the top-level `get`/`set`/`del` helpers directly. Omitting those
+// caused `redisClient.get is not a function` at runtime.
 jest.mock('../src/database/redis', () => ({
   redisClient: {
     isHealthy: () => false,
@@ -33,8 +39,20 @@ jest.mock('../src/database/redis', () => ({
         exec: jest.fn().mockResolvedValue([[null, 1]]),
       }),
     }),
-    ping: jest.fn().mockResolvedValue(true),
-    disconnect: jest.fn().mockResolvedValue(undefined),
+    // Plain async functions rather than jest.fn() — jest.config's
+    // `resetMocks: true` strips any `.mockResolvedValue(...)` set here back
+    // to a bare `jest.fn()` (which resolves to `undefined`) before every
+    // test, so a jest mock would break the first `await redisClient.get(...)`
+    // call. These need no assertions, so plain promises are simplest.
+    get: () => Promise.resolve(null),
+    set: () => Promise.resolve(false),
+    del: () => Promise.resolve(false),
+    delPattern: () => Promise.resolve(0),
+    exists: () => Promise.resolve(false),
+    expire: () => Promise.resolve(false),
+    incr: () => Promise.resolve(null),
+    ping: () => Promise.resolve(true),
+    disconnect: () => Promise.resolve(undefined),
   },
 }));
 

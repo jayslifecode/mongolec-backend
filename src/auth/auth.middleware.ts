@@ -32,6 +32,8 @@ function authCacheKey(userId: string): string {
  * Extend Express Request to include user and tenant
  */
 declare global {
+  // TypeScript requires `namespace` (not ES module syntax) to augment Express's types.
+  // eslint-disable-next-line @typescript-eslint/no-namespace
   namespace Express {
     interface Request {
       user?: {
@@ -211,11 +213,15 @@ export const authenticate = async (
     }
 
     if (error instanceof AppError) {
-      throw error;
+      // Express 4 does not catch rejected promises thrown from async
+      // middleware — throwing here leaves the request hanging until the
+      // client times out instead of reaching the error-handling middleware.
+      // Forward the error via `next()` so Express can route it there.
+      return next(error);
     }
 
     logger.error('Authentication error', error as Error);
-    throw new AppError('Authentication failed', ErrorType.AUTHENTICATION_ERROR, 401);
+    return next(new AppError('Authentication failed', ErrorType.AUTHENTICATION_ERROR, 401));
   }
 };
 
@@ -228,20 +234,23 @@ export const optionalAuthenticate = async (
   res: Response,
   next: NextFunction
 ): Promise<void> => {
-  try {
-    const token = req.cookies['auth-token'];
+  const token = req.cookies['auth-token'];
 
-    if (!token) {
+  if (!token) {
+    return next();
+  }
+
+  // `authenticate` forwards its errors via `next(error)` rather than
+  // throwing (see the comment in its catch block), so intercept that here
+  // and continue without a user instead of propagating the error —
+  // authentication is optional on this path.
+  await authenticate(req, res, (error?: unknown) => {
+    if (error) {
+      logger.warn('Optional authentication failed', error as Error);
       return next();
     }
-
-    // Verify and attach user (same logic as authenticate)
-    await authenticate(req, res, next);
-  } catch (error) {
-    // On error, just continue without user
-    logger.warn('Optional authentication failed', error as Error);
     next();
-  }
+  });
 };
 
 /**

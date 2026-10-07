@@ -1,4 +1,9 @@
-import { requirePermission, requireRole, checkPermission } from '../src/auth/rbac.middleware';
+import {
+  requirePermission,
+  requireRole,
+  checkPermission,
+  checkRole,
+} from '../src/auth/rbac.middleware';
 import { AppError } from '../src/types';
 
 describe('RBAC Middleware', () => {

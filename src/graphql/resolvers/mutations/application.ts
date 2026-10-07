@@ -1,9 +1,37 @@
+import { assertSubmissionAllowed } from '@/middleware/submission-throttle';
+import { sendEmail, getAdminNotifyEmail } from '@/libs/email';
+import {
+  applicantConfirmationEmail,
+  adminApplicationNotificationEmail,
+} from '@/libs/email-templates/application';
+import { createLogger } from '@/utils/logger';
+
+const logger = createLogger('APPLICATION_MUTATIONS');
+
+function getClientIp(context: any): string {
+  return context.req?.ip || context.req?.socket?.remoteAddress || 'unknown';
+}
+
 export const applicationMutations = {
   // Submit a rally application (public - no auth required)
   submitRallyApplication: async (_: any, args: any, context: any) => {
     const { data } = args;
 
+    // Honeypot: bots fill hidden fields. Pretend success without writing anything.
+    if (data.honeypot) {
+      return {
+        success: true,
+        message:
+          'Application submitted successfully! We will review your application and contact you soon.',
+        application: null,
+      };
+    }
+
+    await assertSubmissionAllowed('submitRallyApplication', getClientIp(context));
+
     try {
+      const { honeypot: _honeypot, ...applicationData } = data;
+
       // Verify rally exists and is recruiting
       const rally = await context.prisma.rally.findFirst({
         where: {
@@ -60,7 +88,7 @@ export const applicationMutations = {
       // Create application
       const application = await context.prisma.rallyApplication.create({
         data: {
-          ...data,
+          ...applicationData,
           email: data.email.toLowerCase(),
           tenantId: context.tenant?.id,
           status: 'PENDING',
@@ -78,11 +106,39 @@ export const applicationMutations = {
         },
       });
 
-      // TODO: Send confirmation email
+      const rallyTitle =
+        (application.rally?.title as { en?: string } | undefined)?.en ||
+        application.rally?.slug ||
+        'the rally';
+      const emailData = {
+        firstName: application.firstName,
+        lastName: application.lastName,
+        email: application.email,
+        rallyTitle,
+      };
+      void sendEmail({
+        to: application.email,
+        ...applicantConfirmationEmail(emailData),
+      }).catch((error: unknown) =>
+        logger.error(
+          'Failed to send applicant confirmation email',
+          error instanceof Error ? error : undefined
+        )
+      );
+      void sendEmail({
+        to: getAdminNotifyEmail(),
+        ...adminApplicationNotificationEmail(emailData),
+      }).catch((error: unknown) =>
+        logger.error(
+          'Failed to send admin application notification email',
+          error instanceof Error ? error : undefined
+        )
+      );
 
       return {
         success: true,
-        message: 'Application submitted successfully! We will review your application and contact you soon.',
+        message:
+          'Application submitted successfully! We will review your application and contact you soon.',
         application,
       };
     } catch (error) {
@@ -105,8 +161,8 @@ export const applicationMutations = {
     }
 
     // Check permissions
-    const hasPermission = context.user.permissions?.some((p: any) =>
-      p.resource === 'application' && p.action === 'manage'
+    const hasPermission = context.user.permissions?.some(
+      (p: any) => p.resource === 'application' && p.action === 'manage'
     );
 
     if (!hasPermission) {
@@ -156,8 +212,8 @@ export const applicationMutations = {
     }
 
     // Check permissions
-    const hasPermission = context.user.permissions?.some((p: any) =>
-      p.resource === 'application' && p.action === 'manage'
+    const hasPermission = context.user.permissions?.some(
+      (p: any) => p.resource === 'application' && p.action === 'manage'
     );
 
     if (!hasPermission) {
@@ -214,8 +270,8 @@ export const applicationMutations = {
     }
 
     // Check permissions
-    const hasPermission = context.user.permissions?.some((p: any) =>
-      p.resource === 'application' && p.action === 'manage'
+    const hasPermission = context.user.permissions?.some(
+      (p: any) => p.resource === 'application' && p.action === 'manage'
     );
 
     if (!hasPermission) {
@@ -273,7 +329,10 @@ export const applicationMutations = {
 
       return application;
     } catch (error) {
-      if (error instanceof Error && (error.message === 'Application not found' || error.message.includes('fully booked'))) {
+      if (
+        error instanceof Error &&
+        (error.message === 'Application not found' || error.message.includes('fully booked'))
+      ) {
         throw error;
       }
       console.error('Error approving application:', error);
@@ -295,8 +354,8 @@ export const applicationMutations = {
     }
 
     // Check permissions
-    const hasPermission = context.user.permissions?.some((p: any) =>
-      p.resource === 'application' && p.action === 'manage'
+    const hasPermission = context.user.permissions?.some(
+      (p: any) => p.resource === 'application' && p.action === 'manage'
     );
 
     if (!hasPermission) {
@@ -344,8 +403,8 @@ export const applicationMutations = {
     }
 
     // Check permissions
-    const hasPermission = context.user.permissions?.some((p: any) =>
-      p.resource === 'application' && p.action === 'manage'
+    const hasPermission = context.user.permissions?.some(
+      (p: any) => p.resource === 'application' && p.action === 'manage'
     );
 
     if (!hasPermission) {
@@ -393,8 +452,8 @@ export const applicationMutations = {
     }
 
     // Check permissions
-    const hasPermission = context.user.permissions?.some((p: any) =>
-      p.resource === 'application' && p.action === 'manage'
+    const hasPermission = context.user.permissions?.some(
+      (p: any) => p.resource === 'application' && p.action === 'manage'
     );
 
     if (!hasPermission) {
@@ -439,8 +498,8 @@ export const applicationMutations = {
     }
 
     // Check permissions (can cancel own application or if admin)
-    const isAdmin = context.user.permissions?.some((p: any) =>
-      p.resource === 'application' && p.action === 'manage'
+    const isAdmin = context.user.permissions?.some(
+      (p: any) => p.resource === 'application' && p.action === 'manage'
     );
 
     const existing = await context.prisma.rallyApplication.findFirst({
@@ -499,8 +558,8 @@ export const applicationMutations = {
     }
 
     // Check permissions
-    const hasPermission = context.user.permissions?.some((p: any) =>
-      p.resource === 'application' && p.action === 'manage'
+    const hasPermission = context.user.permissions?.some(
+      (p: any) => p.resource === 'application' && p.action === 'manage'
     );
 
     if (!hasPermission) {
@@ -548,8 +607,8 @@ export const applicationMutations = {
     }
 
     // Check permissions
-    const hasPermission = context.user.permissions?.some((p: any) =>
-      p.resource === 'application' && p.action === 'manage'
+    const hasPermission = context.user.permissions?.some(
+      (p: any) => p.resource === 'application' && p.action === 'manage'
     );
 
     if (!hasPermission) {
@@ -596,8 +655,8 @@ export const applicationMutations = {
     }
 
     // Check permissions
-    const hasPermission = context.user.permissions?.some((p: any) =>
-      p.resource === 'application' && p.action === 'manage'
+    const hasPermission = context.user.permissions?.some(
+      (p: any) => p.resource === 'application' && p.action === 'manage'
     );
 
     if (!hasPermission) {
