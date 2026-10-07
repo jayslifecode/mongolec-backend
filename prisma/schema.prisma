@@ -43,6 +43,7 @@ model Tenant {
   newsArticles    NewsArticle[]
   merchCategories MerchCategory[]
   merchProducts   MerchProduct[]
+  merchDiscounts  MerchDiscount[]
 
   // Rally for Rangers
   rallies           Rally[]
@@ -645,6 +646,7 @@ model MerchCategory {
   description Json? // {"en": "Description", "mn": "Тайлбар"}
   color       String? // Hex color for UI
   icon        String? // Icon name
+  image       String? // Optional dedicated cover image URL for the category card
 
   // Hierarchy support
   parentId String?
@@ -715,6 +717,9 @@ model MerchProduct {
 
   // Variant relations (named productVariants to avoid conflict with JSON column)
   productVariants MerchVariant[] @relation("ProductVariants")
+
+  // Discounts (many-to-many; a product can be part of multiple discounts)
+  discounts MerchDiscount[] @relation("MerchProductDiscounts")
 
   // SEO & Marketing
   metaTitle       Json? // {"en": "SEO Title", "mn": "SEO Гарчиг"}
@@ -807,6 +812,144 @@ enum MerchProductStatus {
   INACTIVE
   OUT_OF_STOCK
   DISCONTINUED
+}
+
+// ================================
+// MERCH ORDERS
+// ================================
+
+enum MerchDiscountType {
+  PERCENT
+  AMOUNT
+}
+
+model MerchDiscount {
+  id        String            @id @default(cuid())
+  name      String
+  type      MerchDiscountType
+  value     Float
+  startDate DateTime
+  endDate   DateTime
+  isActive  Boolean           @default(true)
+
+  tenantId String
+  tenant   Tenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  products MerchProduct[] @relation("MerchProductDiscounts")
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  @@index([tenantId, isActive, startDate, endDate])
+  @@map("merch_discounts")
+}
+
+model MerchOrder {
+  id            String           @id @default(cuid())
+  orderNumber   String           @unique
+  userId        String?
+  customerName  String
+  phone         String
+  email         String?
+  address       String
+  notes         String?
+  status           MerchOrderStatus @default(PENDING)
+  paymentMethod    String           @default("BANK_TRANSFER")
+  deliveryMethod   String           @default("DELIVERY")
+  paymentClaimedAt DateTime?
+  subtotal         Float
+  discountTotal    Float            @default(0)
+  total            Float
+  currency         String           @default("MNT")
+  tenantId         String
+  items         MerchOrderItem[]
+  payments      Payment[]
+  createdAt     DateTime         @default(now())
+  updatedAt     DateTime         @updatedAt
+
+  @@index([tenantId])
+  @@index([status])
+  @@map("merch_orders")
+}
+
+model MerchOrderItem {
+  id          String     @id @default(cuid())
+  orderId     String
+  order       MerchOrder @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  productId   String
+  name        String
+  image       String?
+  variantId   String?
+  variantName String?
+  unitPrice         Float
+  originalUnitPrice Float?
+  quantity          Int
+
+  @@index([orderId])
+  @@map("merch_order_items")
+}
+
+enum MerchOrderStatus {
+  AWAITING_PAYMENT
+  PENDING
+  PAID
+  CONFIRMED
+  SHIPPED
+  DELIVERED
+  CANCELLED
+  EXPIRED
+}
+
+model Payment {
+  id              String        @id @default(cuid())
+  orderId         String
+  order           MerchOrder    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  tenantId        String
+  provider        String        @default("QPAY")
+
+  senderInvoiceNo String        @unique
+  qpayInvoiceId   String?       @unique
+  qpayPaymentId   String?
+
+  amount          Float
+  currency        String        @default("MNT")
+  paidAmount      Float?
+
+  // Captured from the QPay payment/check response on confirmation.
+  fee               Float?  // QPay transaction fee (≈1%)
+  netAmount         Float?  // paidAmount - fee (what the merchant receives)
+  paymentWallet     String? // bank app used, e.g. "Хас банк апп"
+  paymentType       String? // P2P (QR/bank) or CARD
+  settlementStatus  String? // e.g. SETTLED
+  ebarimtCustomerNo String? // customer tax register for e-barimt
+
+  status          PaymentStatus @default(PENDING)
+
+  qrText          String?
+  qrImage         String?
+  shortUrl        String?
+  deeplinks       Json?
+
+  invoiceResponse Json?
+  callbackPayload Json?
+
+  expiresAt       DateTime?
+  paidAt          DateTime?
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  @@index([orderId])
+  @@index([tenantId])
+  @@index([status])
+  @@map("payments")
+}
+
+enum PaymentStatus {
+  PENDING
+  PAID
+  FAILED
+  EXPIRED
+  CANCELLED
 }
 
 // ================================

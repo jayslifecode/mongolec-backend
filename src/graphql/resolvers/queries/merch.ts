@@ -1,8 +1,19 @@
 import { GraphQLContext } from '@/types';
 import { createLogger } from '@/utils/logger';
 import { getLocalizedContent } from '@/libs/localization';
+import { resolveActiveDiscount } from '@/libs/discounts';
 
 const logger = createLogger('MERCH_QUERIES');
+
+// Compute best-price-wins discount fields for a product from its active discounts.
+const discountFields = (product: any) => {
+  const d = resolveActiveDiscount(product.price, product.discounts || [], new Date());
+  return {
+    activeDiscount: d?.discount ?? null,
+    discountedPrice: d?.discountedPrice ?? null,
+    discountAmount: d?.discountAmount ?? null,
+  };
+};
 
 /**
  * Merch Query Resolvers
@@ -57,6 +68,7 @@ export const merchQueries = {
             where: { deletedAt: null },
             orderBy: { position: 'asc' },
           },
+          discounts: { where: { deletedAt: null, isActive: true } },
         },
         take: limit,
         skip: offset,
@@ -94,6 +106,7 @@ export const merchQueries = {
           title: variant.title ? getLocalizedContent(variant.title, language) : null,
           // Keep optionValues as-is (contains multi-language data)
         })),
+        ...discountFields(product),
       }));
     } catch (error) {
       logger.error('Error fetching merch products', error as Error);
@@ -117,6 +130,7 @@ export const merchQueries = {
             where: { deletedAt: null },
             orderBy: { position: 'asc' },
           },
+          discounts: { where: { deletedAt: null, isActive: true } },
         },
       });
 
@@ -153,6 +167,7 @@ export const merchQueries = {
           title: variant.title ? getLocalizedContent(variant.title, language) : null,
           // Keep optionValues as-is (contains multi-language data)
         })),
+        ...discountFields(product),
       };
     } catch (error) {
       logger.error('Error fetching merch product', error as Error);

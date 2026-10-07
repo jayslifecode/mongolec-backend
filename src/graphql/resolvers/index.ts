@@ -6,6 +6,8 @@ import { userQueries } from './queries/user';
 import { tenantQueries } from './queries/tenant';
 import { newsQueries } from './queries/news';
 import { merchQueries } from './queries/merch';
+import { orderQueries } from './queries/order';
+import { discountQueries } from './queries/discount';
 import { contentQueries } from './queries/content';
 import { rallyQueries } from './queries/rally';
 import { applicationQueries } from './queries/application';
@@ -24,6 +26,9 @@ import { authMutations } from './mutations/auth';
 import { userMutations } from './mutations/user';
 import { newsMutations } from './mutations/news';
 import { merchMutations } from './mutations/merch';
+import { orderMutations } from './mutations/order';
+import { discountMutations } from './mutations/discount';
+import { orderExportMutations } from './mutations/order-export';
 import { contentMutations } from './mutations/content';
 import { tenantMutations } from './mutations/tenant';
 import { uploadResolvers } from './mutations/upload';
@@ -37,6 +42,8 @@ import { newsletterMutations } from './mutations/newsletter';
 import { teamMutations } from './mutations/team';
 import { rangerMutations } from './mutations/ranger';
 import { participantMutations } from './mutations/participant';
+import { paymentQueries } from './queries/payment';
+import { paymentMutations } from './mutations/payment';
 
 /**
  * Custom scalar resolvers
@@ -156,6 +163,15 @@ const Participant = {
   },
 };
 
+const MerchOrder = {
+  // Payments for an order (admin visibility). Raw QPay payloads are never exposed here.
+  payments: (parent: any, _args: any, context: any) =>
+    context.prisma.payment.findMany({
+      where: { orderId: parent.id },
+      orderBy: { createdAt: 'desc' },
+    }),
+};
+
 /**
  * Combined Resolvers
  * Merges all domain resolvers with scalars and base resolvers
@@ -169,6 +185,7 @@ export const resolvers = {
   Tenant,
   Rally,
   Participant,
+  MerchOrder,
 
   // Root Query
   Query: {
@@ -186,6 +203,8 @@ export const resolvers = {
     ...tenantQueries,
     ...newsQueries,
     ...merchQueries,
+    ...orderQueries,
+    ...discountQueries,
     ...contentQueries,
     ...rallyQueries,
     ...applicationQueries,
@@ -197,6 +216,7 @@ export const resolvers = {
     ...teamQueries,
     ...rangerQueries,
     ...participantQueries,
+    ...paymentQueries,
   },
 
   // Root Mutation
@@ -207,6 +227,9 @@ export const resolvers = {
     ...tenantMutations,
     ...newsMutations,
     ...merchMutations, // Includes variant mutations
+    ...orderMutations, // Guest createMerchOrder + admin status update
+    ...discountMutations,
+    ...orderExportMutations,
     ...contentMutations,
     ...uploadResolvers.Mutation,
     ...rallyMutations,
@@ -219,6 +242,7 @@ export const resolvers = {
     ...teamMutations,
     ...rangerMutations,
     ...participantMutations,
+    ...paymentMutations,
   },
 };
 

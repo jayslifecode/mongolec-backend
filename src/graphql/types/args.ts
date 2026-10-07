@@ -8,7 +8,9 @@
 // ============================================
 
 export type JSONValue = string | number | boolean | JSONObject | JSONArray | null;
-export interface JSONObject { [key: string]: JSONValue }
+export interface JSONObject {
+  [key: string]: JSONValue;
+}
 export interface JSONArray extends Array<JSONValue> {}
 
 export type LocalizedString = string | { en: string; fr?: string };
@@ -66,6 +68,7 @@ export interface MerchProductInput {
   isFeatured?: boolean;
   isDigital?: boolean;
   publishedAt?: Date;
+  discountIds?: string[];
 }
 
 export interface CreateMerchProductArgs {

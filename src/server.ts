@@ -13,6 +13,7 @@ import cookieParser from 'cookie-parser';
 import { config } from '@/config';
 import { typeDefs } from '@/graphql/schema';
 import { resolvers } from '@/graphql/resolvers';
+import { qpayCallbackRouter } from '@/routes/qpay-callback';
 import { GraphQLContext } from '@/types';
 import { prisma, databaseClient } from '@/database/prisma';
 import { redisClient } from '@/database/redis';
@@ -191,6 +192,10 @@ export class GraphQLServer {
 
     // Sanitize request body to prevent XSS attacks
     this.app.use(sanitizeBody);
+
+    // QPay payment callback (public; secured by HMAC token in the URL +
+    // re-verification against QPay inside confirmPayment).
+    this.app.use('/api/payments/qpay', qpayCallbackRouter);
 
     // Custom request logging with response time
     this.app.use((req, res, next) => {

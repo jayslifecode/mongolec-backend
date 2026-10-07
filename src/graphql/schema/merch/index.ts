@@ -41,6 +41,10 @@ export const merchSchema = gql`
     isFeatured: Boolean!
     isDigital: Boolean
     publishedAt: DateTime
+    discounts: [MerchDiscount!]
+    activeDiscount: MerchDiscount
+    discountedPrice: Float
+    discountAmount: Float
     createdAt: DateTime!
     updatedAt: DateTime!
   }
@@ -73,8 +77,47 @@ export const merchSchema = gql`
     description: JSON
     color: String
     icon: String
+    image: String
     createdAt: DateTime!
     updatedAt: DateTime!
+  }
+
+  enum MerchDiscountType {
+    PERCENT
+    AMOUNT
+  }
+
+  type MerchDiscount {
+    id: ID!
+    name: String!
+    type: MerchDiscountType!
+    value: Float!
+    startDate: DateTime!
+    endDate: DateTime!
+    isActive: Boolean!
+    productIds: [ID!]
+    createdAt: DateTime!
+    updatedAt: DateTime!
+  }
+
+  input CreateMerchDiscountInput {
+    name: String!
+    type: MerchDiscountType!
+    value: Float!
+    startDate: DateTime!
+    endDate: DateTime!
+    isActive: Boolean
+    productIds: [ID!]
+  }
+
+  input UpdateMerchDiscountInput {
+    name: String
+    type: MerchDiscountType
+    value: Float
+    startDate: DateTime
+    endDate: DateTime
+    isActive: Boolean
+    productIds: [ID!]
   }
 
   input VariantOptionInput {
@@ -144,6 +187,7 @@ export const merchSchema = gql`
     isFeatured: Boolean
     isDigital: Boolean
     publishedAt: DateTime
+    discountIds: [ID!]
   }
 
   input UpdateMerchProductInput {
@@ -176,6 +220,7 @@ export const merchSchema = gql`
     isFeatured: Boolean
     isDigital: Boolean
     publishedAt: DateTime
+    discountIds: [ID!]
   }
 
   input CreateMerchCategoryInput {
@@ -208,6 +253,14 @@ export const merchSchema = gql`
     getMerchProductById(id: ID!, language: String): MerchProduct
     getMerchCategories(language: String): [MerchCategory!]!
     getMerchCategoryById(id: ID!, language: String): MerchCategory
+    getMerchDiscounts(
+      tenantId: ID
+      tenantSlug: String
+      isActive: Boolean
+      limit: Int
+      offset: Int
+    ): [MerchDiscount!]!
+    getMerchDiscountById(id: ID!): MerchDiscount
   }
 
   # ============================================
@@ -229,5 +282,10 @@ export const merchSchema = gql`
     createMerchCategory(input: CreateMerchCategoryInput!): MerchCategory!
     updateMerchCategory(id: ID!, input: UpdateMerchCategoryInput!): MerchCategory!
     deleteMerchCategory(id: ID!): Boolean!
+
+    # Discount mutations
+    createMerchDiscount(input: CreateMerchDiscountInput!): MerchDiscount!
+    updateMerchDiscount(id: ID!, input: UpdateMerchDiscountInput!): MerchDiscount!
+    deleteMerchDiscount(id: ID!): Boolean!
   }
 `;
