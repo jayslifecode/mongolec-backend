@@ -358,7 +358,13 @@ async function main() {
       wasExisting ? updated++ : created++;
       console.log(`  ✅ ${wasExisting ? 'updated' : 'created'} ${s.slug}`);
     }
-    console.log(`\n🎉 Done. Created ${created}, updated ${updated}.`);
+    // Demo IMPACT stories from the June seed are archived so only real rally stories publish.
+    const SEED_PLACEHOLDER_SLUGS = ['hustai-2025-impact-report'];
+    const archived = await prisma.story.updateMany({
+      where: { tenantId: tenant.id, slug: { in: SEED_PLACEHOLDER_SLUGS }, status: 'PUBLISHED' },
+      data: { status: 'ARCHIVED' },
+    });
+    console.log(`\n🎉 Done. Created ${created}, updated ${updated}, archived ${archived.count} seed placeholders.`);
   } finally {
     await prisma.$disconnect();
   }
