@@ -207,8 +207,15 @@ async function main() {
       console.log(`  ✅ ${existingMember ? 'updated' : 'created'} ${m.name} (${m.role})`);
     }
 
+    // Demo team members from the June seed (not real people) must never show publicly.
+    const SEED_PLACEHOLDER_NAMES = ['Sarah Mitchell', 'James Okafor'];
+    const hidden = await prisma.teamMember.updateMany({
+      where: { tenantId: tenant.id, name: { in: SEED_PLACEHOLDER_NAMES }, isActive: true },
+      data: { isActive: false },
+    });
+
     writeManifest(manifest);
-    console.log(`\n🎉 Done. Created ${created}, updated ${updated}.`);
+    console.log(`\n🎉 Done. Created ${created}, updated ${updated}, hid ${hidden.count} seed placeholders.`);
   } finally {
     await prisma.$disconnect();
   }
