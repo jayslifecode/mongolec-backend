@@ -16,7 +16,7 @@ export const RALLY_LONG_EDGE = 2000;
 export const SITE_LONG_EDGE = 2000;
 export const PORTRAIT_LONG_EDGE = 900;
 
-const IMAGE_EXT = /\.(jpe?g|png|heic)$/i;
+const IMAGE_EXT = /\.(jpe?g|png|heic)$/i; // webp sources: convert to png first (sips cannot read them)
 
 export interface UploadItem {
   /** B2 object key, e.g. `rfr/rallies/mongolia-2024/1.webp`. */

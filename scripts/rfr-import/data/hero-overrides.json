@@ -1,0 +1,14 @@
+{
+  "_comment": "Curated 2026-10-07 from a contact sheet of every rally's images. `hero` = manifest key to use as the hero (moved to the front of the gallery); `drop` = keys to remove entirely (maps, flyers, posters, blank frames). Keys are B2 object keys from image-manifest.json.",
+  "usa-2025": { "hero": "rfr/rallies/usa-2025/3.webp", "drop": ["rfr/rallies/usa-2025/1.webp", "rfr/rallies/usa-2025/5.webp"], "why": "hero was the event flyer; 5 is a collage png" },
+  "mongolia-2023": { "hero": "rfr/rallies/mongolia-2023/2.webp", "drop": ["rfr/rallies/mongolia-2023/1.webp"], "why": "hero was the route map" },
+  "namibia-2023": { "hero": "rfr/rallies/namibia-2023/2.webp", "drop": ["rfr/rallies/namibia-2023/1.webp"], "why": "hero was the route map; 2 is the elephant photo (webp source)" },
+  "argentina-2018": { "hero": "rfr/rallies/argentina-2018/2.webp", "why": "group photo -> Patagonia lake and peaks" },
+  "mongolia-2018": { "hero": "rfr/rallies/mongolia-2018/2.webp", "why": "handover portrait -> Altai mountains" },
+  "mongolia-2019": { "hero": "rfr/rallies/mongolia-2019/5.webp", "why": "flag portrait -> riders at sunset" },
+  "mongolia-2015": { "hero": "rfr/rallies/mongolia-2015/3.webp", "why": "dark group photo -> bikes lined up" },
+  "nepal-2019": { "hero": "rfr/rallies/nepal-2019/3.webp", "why": "ceremony photo -> rider on the bike" },
+  "bhutan-2022": { "hero": "rfr/rallies/bhutan-2022/2.webp", "why": "dark handover -> misty monastery" },
+  "bhutan-2024": { "hero": "rfr/rallies/bhutan-2024/2.webp", "why": "same set as 2022 in the Drive folder; same pick" },
+  "mongolia-2021": { "drop": ["rfr/rallies/mongolia-2021/3.webp"], "why": "blank yellow frame" }
+}

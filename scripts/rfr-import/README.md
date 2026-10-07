@@ -103,3 +103,6 @@ skipped silently (no error) and those links are simply not created — either mo
   one importer, kept small and unit-testable (`lib/*.test.ts`, run via `npm test`).
 - `data/` — spreadsheet dumps (`website-data-2026-09.json`, `staff-bios.txt`) and the
   generated `image-manifest.json`.
+
+## Hero curation (2026-10-07)
+`data/hero-overrides.json` promotes a specific manifest key to be a rally's hero and drops non-photo assets (maps, flyers, posters). `import-rallies.ts` applies it automatically; edit the JSON and re-run `import-rallies.ts --commit`. Note: `Namibia_2023_02.webp` in the Drive folder was converted to `Namibia_2023_02.png` beside it because `sips` cannot read WebP sources; the uploader ignores `.webp` inputs.

@@ -24,6 +24,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { kebab } from './lib/text';
 import { readManifest, rallyImages } from './lib/manifest';
+import { applyHeroOverrides, readHeroOverrides } from './lib/hero-overrides';
 
 const TENANT_SLUG = 'rally-for-rangers';
 const DATA_FILE = path.join(__dirname, 'data', 'website-data-2026-09.json');
@@ -150,7 +151,7 @@ function mapRally(src: SourceRally, manifest: ReturnType<typeof readManifest>): 
   // The Drive folder `Mongolia_2026` is uploaded under the mongolia-2027 prefix (see
   // discover-assets.ts); the completed Mongolia 2026 rally shares those same photos.
   const imageSlug = slug === 'mongolia-2026' ? 'mongolia-2027' : slug;
-  const { hero, gallery } = rallyImages(manifest, imageSlug);
+  const { hero, gallery } = applyHeroOverrides(slug, rallyImages(manifest, imageSlug), manifest, readHeroOverrides());
   const distance = (src['Travel Distance (km)'] || '').trim();
   const distanceInContent = src['Main Content'].match(/Travel distance:\s*([\d,]+)\s*km/i);
   const km = distance || (distanceInContent ? distanceInContent[1] : '');
