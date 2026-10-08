@@ -1,0 +1,16 @@
+{
+  "_source": "Merch list by 7.2 (1).xlsx, sheet 10.06, column E (Stock 10.06) keyed by column I (code = product SKU). Counted on 2026-10-06; all 4 web orders predate the count, so the sheet is authoritative.",
+  "skuFixes": [
+    { "from": "RFR-469073", "to": "123", "why": "sheet code 123 = RFR coffee mug with lid, black (MNT 200,000)" }
+  ],
+  "stock": [
+    { "sku": "100", "inventory": 0 }, { "sku": "101", "inventory": 0 }, { "sku": "102", "inventory": 0 },
+    { "sku": "103", "inventory": 1 }, { "sku": "123", "inventory": 2 }, { "sku": "104", "inventory": 5 },
+    { "sku": "105", "inventory": 1 }, { "sku": "106", "inventory": 0 }, { "sku": "107", "inventory": 0 },
+    { "sku": "108", "inventory": 117 }, { "sku": "109", "inventory": 112 }, { "sku": "110", "inventory": 76 },
+    { "sku": "111", "inventory": 3 }, { "sku": "112", "inventory": 3 }, { "sku": "113", "inventory": 2 },
+    { "sku": "114", "inventory": 9 }, { "sku": "116", "inventory": 9 }, { "sku": "117", "inventory": 14 },
+    { "sku": "118", "inventory": 0 }, { "sku": "119", "inventory": 0 }, { "sku": "120", "inventory": 9 },
+    { "sku": "121", "inventory": 37 }, { "sku": "122", "inventory": 44 }
+  ]
+}

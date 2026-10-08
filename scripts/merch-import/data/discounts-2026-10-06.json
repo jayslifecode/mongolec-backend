@@ -1,0 +1,18 @@
+{
+  "_source": "Merch list by 7.2 (1).xlsx, sheet 10.06, column J (Discount) keyed by column I (code = product SKU)",
+  "_pricing": "PERCENT off the product price; promo prices in column K were used to verify each percentage",
+  "startDate": "2026-10-06",
+  "endDate": "2027-12-31",
+  "items": [
+    { "sku": "104", "percent": 40, "label": "RFR coffee maker USA" },
+    { "sku": "105", "percent": 20, "label": "MEC coffee cup (steel)" },
+    { "sku": "108", "percent": 30, "label": "NPA metal badge" },
+    { "sku": "109", "percent": 30, "label": "JRP metal badge" },
+    { "sku": "110", "percent": 30, "label": "YSC metal badge" },
+    { "sku": "116", "percent": 30, "label": "MEC manager notebook B5" },
+    { "sku": "117", "percent": 30, "label": "YSC manager notebook B5" },
+    { "sku": "120", "percent": 20, "label": "MEC coffee cup (ceramic)" },
+    { "sku": "121", "percent": 20, "label": "RFR keychain strap" },
+    { "sku": "122", "percent": 20, "label": "RFR bag strap" }
+  ]
+}
