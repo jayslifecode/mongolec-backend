@@ -3,6 +3,7 @@ import { createLogger } from '@/utils/logger';
 import { slugify } from '@/utils/index';
 import { authenticated, withPermission } from '@/graphql/decorators/auth';
 import { NotFoundError, ValidationError } from '@/utils/errors';
+import { syncProductVariants } from './merch-variants';
 import type {
   CreateMerchProductArgs,
   UpdateMerchProductArgs,
@@ -90,7 +91,7 @@ export const merchMutations = {
           });
 
           logger.info(`Created merch product: ${product.id}`, { userId: context.user.id });
-          return product;
+          return { ...product, variants: product.productVariants };
         } catch (error) {
           logger.error('Error creating merch product', error as Error);
           throw error;
@@ -142,46 +143,27 @@ export const merchMutations = {
           // Set updated by user
           updateData.updatedById = context.user.id;
 
-          // Handle variant updates
-          // If variants are provided, delete existing and create new ones
-          if (variants !== undefined) {
-            // Delete existing variants
-            await context.prisma.merchVariant.deleteMany({
-              where: { productId: id },
-            });
-
-            // Create new variants if provided
-            if (variants && variants.length > 0) {
-              updateData.productVariants = {
-                create: variants.map((variant: any, index: number) => ({
-                  ...variant,
-                  position: variant.position ?? index,
-                  inventory: variant.inventory ?? 0,
-                  isAvailable: variant.isAvailable ?? true,
-                })),
-              };
-            }
-          }
-
           if (discountIds) {
             updateData.discounts = { set: discountIds.map((did: string) => ({ id: did })) };
           }
 
-          const product = await context.prisma.merchProduct.update({
-            where: { id },
-            data: updateData,
-            include: {
-              category: true,
-              tenant: true,
-              productVariants: {
-                where: { deletedAt: null },
-                orderBy: { position: 'asc' },
-              },
-            },
+          const include = {
+            category: true,
+            tenant: true,
+            productVariants: { where: { deletedAt: null }, orderBy: { position: 'asc' as const } },
+          };
+
+          // Variants are reconciled by SKU (update / create / soft-delete) in the same
+          // transaction as the product row, so a failed variant write leaves nothing half-done.
+          const product = await context.prisma.$transaction(async tx => {
+            if (variants !== undefined) {
+              await syncProductVariants(tx, id, variants ?? []);
+            }
+            return tx.merchProduct.update({ where: { id }, data: updateData, include });
           });
 
           logger.info(`Updated merch product: ${product.id}`, { userId: context.user.id });
-          return product;
+          return { ...product, variants: product.productVariants };
         } catch (error) {
           logger.error('Error updating merch product', error as Error);
           throw error;
