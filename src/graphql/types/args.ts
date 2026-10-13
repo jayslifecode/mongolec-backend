@@ -19,14 +19,21 @@ export type LocalizedString = string | { en: string; fr?: string };
 // Merchandise Types
 // ============================================
 
+/** Mirrors the GraphQL `CreateVariantInput` type. */
 export interface MerchProductVariantInput {
-  title: string;
-  sku?: string;
+  sku: string;
   price: number;
-  compareAtPrice?: number;
-  inventory?: number;
-  isAvailable?: boolean;
-  position?: number;
+  optionValues: unknown;
+  barcode?: string | null;
+  title?: unknown;
+  compareAtPrice?: number | null;
+  costPrice?: number | null;
+  inventory?: number | null;
+  weight?: number | null;
+  dimensions?: unknown;
+  image?: string | null;
+  position?: number | null;
+  isAvailable?: boolean | null;
 }
 
 export interface MerchProductInput {
