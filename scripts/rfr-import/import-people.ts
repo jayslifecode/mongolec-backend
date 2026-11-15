@@ -23,10 +23,18 @@
  * `rfr-rider-*` participants (and their links) that are no longer produced, and logs what it
  * deletes, before upserting the current set.
  *
+ * Rangers never become riders: portrait sightings of anyone typed "Ranger" in the sheet or
+ * present in Ranger_Portraits are dropped, as are unnamed camera files (FRF01826.jpg).
+ *
+ * Master sheet mode (`--from-sheet`): RFR_Riders_Master.xlsx (see export-riders-sheet.ts) is the
+ * only source of riders and rally links; bio/photo/country are kept from the existing rows.
+ * Rangers are not touched in this mode.
+ *
  * Usage:
  *   npx ts-node -r dotenv/config scripts/rfr-import/import-people.ts --print   # offline mapping preview, no DB
  *   npx ts-node -r dotenv/config scripts/rfr-import/import-people.ts          # dry run — plan only, no writes
  *   npx ts-node -r dotenv/config scripts/rfr-import/import-people.ts --commit # apply
+ *   npx ts-node -r dotenv/config scripts/rfr-import/import-people.ts --from-sheet ~/Downloads/RFR_Riders_Master.xlsx [--commit]
  */
 import { PrismaClient } from '@prisma/client';
 import * as fs from 'fs';
@@ -40,11 +48,14 @@ import { isWordpressUrl, kebab } from './lib/text';
 import {
   mergeRiderSightings,
   riderMergeKey,
+  splitRiderName,
   type MergedRider,
   type RiderSighting,
 } from './lib/rider-merge';
 import { nameFromFilename, scanPortraitFolders } from './lib/portrait-folders';
 import { parseGroupHeader, type GroupHeader } from './lib/sheet-groups';
+import { fromSheetRows, mergeSheetRiders } from './lib/rider-sheet';
+import { readRiderSheet } from './lib/rider-sheet-file';
 
 const TENANT_SLUG = 'rally-for-rangers';
 const DATA_FILE = path.join(__dirname, 'data', 'website-data-2026-09.json');
@@ -237,17 +248,180 @@ function printSummary(riders: ResolvedRider[]) {
     .forEach(r => console.log(`   ${r.displayName.padEnd(28)} ${r.rallies.size} rallies`));
 }
 
-async function main() {
-  const args = new Set(process.argv.slice(2));
-  const printOnly = args.has('--print');
-  const commit = args.has('--commit');
+/** First/last name for the DB row: explicit (master sheet) or derived from the display name. */
+function nameParts(r: ResolvedRider): { firstName: string; lastName: string } {
+  if (r.firstName !== undefined) return { firstName: r.firstName, lastName: r.lastName ?? '' };
+  return splitRiderName(r.displayName);
+}
 
+async function loadTenantContext(
+  prisma: PrismaClient
+): Promise<{ tenantId: string; rallyIdBySlug: Map<string, string> }> {
+  const tenant = await prisma.tenant.findUnique({ where: { slug: TENANT_SLUG } });
+  if (!tenant) throw new Error(`Tenant '${TENANT_SLUG}' not found.`);
+  console.log(`\n✅ Tenant: ${tenant.name} (${tenant.id})`);
+  const rallyRows = await prisma.rally.findMany({
+    where: { tenantId: tenant.id },
+    select: { id: true, slug: true },
+  });
+  return { tenantId: tenant.id, rallyIdBySlug: new Map(rallyRows.map(r => [r.slug, r.id])) };
+}
+
+/**
+ * Print the plan (stale riders to delete, upserts, links) and, with `commit`, apply it:
+ * delete stale `rfr-rider-*` participants, upsert every rider, replace each rider's links.
+ * Returns true when it wrote.
+ */
+async function writeRiders(
+  prisma: PrismaClient,
+  tenantId: string,
+  rallyIdBySlug: Map<string, string>,
+  riders: ResolvedRider[],
+  commit: boolean
+): Promise<boolean> {
+  const existing = await prisma.participant.findMany({
+    where: { tenantId, id: { startsWith: 'rfr-rider-' } },
+    select: { id: true, firstName: true, lastName: true },
+  });
+  const producedIds = new Set(riders.map(r => r.id));
+  const toDelete = existing.filter(p => !producedIds.has(p.id));
+  const linkable = riders.reduce(
+    (n, r) => n + Array.from(r.rallies.keys()).filter(s => rallyIdBySlug.has(s)).length,
+    0
+  );
+  const unknownSlugs = Array.from(
+    new Set(riders.flatMap(r => Array.from(r.rallies.keys())).filter(s => !rallyIdBySlug.has(s)))
+  );
+
+  console.log(`📋 Plan — upsert ${riders.length} riders (${linkable} rally links)`);
+  if (unknownSlugs.length) {
+    console.log(`⚠️  Rally slugs with no rally row (links skipped): ${unknownSlugs.join(', ')}`);
+  }
+  if (toDelete.length) {
+    console.log(`🗑️  Will delete ${toDelete.length} stale rfr-rider-* participants:`);
+    toDelete.forEach(p => console.log(`   - ${p.id} (${p.firstName} ${p.lastName})`));
+  }
+  if (!commit) {
+    console.log('\n🚫 Dry run — nothing written. Re-run with --commit to apply.');
+    return false;
+  }
+
+  if (toDelete.length) {
+    const ids = toDelete.map(p => p.id);
+    await prisma.participantRally.deleteMany({ where: { participantId: { in: ids } } });
+    await prisma.participant.deleteMany({ where: { id: { in: ids } } });
+  }
+
+  let linksDone = 0;
+  for (const [index, r] of riders.entries()) {
+    const fields = {
+      ...nameParts(r),
+      slug: r.slug,
+      country: r.country,
+      bio: r.bio || null,
+      photo: r.photo,
+      isActive: true,
+    };
+    await prisma.participant.upsert({
+      where: { id: r.id },
+      update: fields,
+      create: { ...fields, id: r.id, displayOrder: index, tenantId },
+    });
+    // Replace this rider's links to match the freshly computed set exactly.
+    await prisma.participantRally.deleteMany({ where: { participantId: r.id } });
+    for (const [slug, { year, role }] of r.rallies.entries()) {
+      const rallyId = rallyIdBySlug.get(slug);
+      if (!rallyId) continue;
+      await prisma.participantRally.create({
+        data: { participantId: r.id, rallyId, year, role: role ?? 'Rider' },
+      });
+      linksDone++;
+    }
+  }
+  console.log(
+    `\n🎉 Riders: ${riders.length} (${linksDone} rally links). Deleted stale: ${toDelete.length}.`
+  );
+  return true;
+}
+
+async function writeRangers(prisma: PrismaClient, tenantId: string, rangers: RangerAcc[]) {
+  for (const r of rangers) {
+    const fields = {
+      name: r.name,
+      parkName: r.parkName || FALLBACK_PARK_NAME,
+      country: r.country,
+      bio: r.bio || null,
+      photo: r.photo,
+      displayOrder: r.displayOrder,
+      isActive: true,
+    };
+    await prisma.ranger.upsert({
+      where: { id: r.id },
+      update: fields,
+      create: { ...fields, id: r.id, tenantId },
+    });
+  }
+  console.log(`🎉 Rangers: ${rangers.length}.`);
+}
+
+async function printFinalCounts(
+  prisma: PrismaClient,
+  tenantId: string,
+  rallyIdBySlug: Map<string, string>
+) {
+  const [totalRiders, ridersWithPhoto, linksTotal] = await Promise.all([
+    prisma.participant.count({ where: { tenantId } }),
+    prisma.participant.count({ where: { tenantId, photo: { not: null } } }),
+    prisma.participantRally.count({ where: { participant: { tenantId } } }),
+  ]);
+  console.log(
+    `\n📈 Final counts — total riders: ${totalRiders}, with photo: ${ridersWithPhoto}, links: ${linksTotal}`
+  );
+  console.log('\n📍 Riders per rally slug:');
+  const perRally = await Promise.all(
+    Array.from(rallyIdBySlug.entries()).map(async ([slug, rallyId]) => ({
+      slug,
+      count: await prisma.participantRally.count({ where: { rallyId } }),
+    }))
+  );
+  perRally
+    .filter(r => r.count > 0)
+    .sort((a, b) => a.slug.localeCompare(b.slug))
+    .forEach(r => console.log(`   ${r.slug.padEnd(22)} ${r.count}`));
+}
+
+/** `--from-sheet <xlsx>`: the master sheet alone decides riders and their rally links. */
+async function runFromSheet(sheetPath: string, commit: boolean) {
+  const { rows, rallyKey } = await readRiderSheet(sheetPath);
+  const sheetRiders = fromSheetRows(rows, rallyKey);
+  const prisma = new PrismaClient();
+  try {
+    const { tenantId, rallyIdBySlug } = await loadTenantContext(prisma);
+    const existing = await prisma.participant.findMany({
+      where: { tenantId },
+      select: { firstName: true, lastName: true, bio: true, photo: true, country: true },
+    });
+    const riderIndex = buildBucketIndex(readManifest(), 'riders');
+    const riders = assignIdsAndSlugs(mergeSheetRiders(sheetRiders, existing, DEFAULT_COUNTRY)).map(
+      r => ({ ...r, photo: r.photo ?? matchPortrait(r.displayName, riderIndex) ?? null })
+    );
+
+    console.log(`\n📄 ${sheetPath}: ${riders.length} riders`);
+    printSummary(riders);
+    if (await writeRiders(prisma, tenantId, rallyIdBySlug, riders, commit)) {
+      await printFinalCounts(prisma, tenantId, rallyIdBySlug);
+    }
+  } finally {
+    await prisma.$disconnect();
+  }
+}
+
+/** Default mode: "Riders by Rally" sheet + portrait folders + rangers. */
+async function runFromSources(printOnly: boolean, commit: boolean) {
   const rows = loadRows();
   const { riderSightings, rangers } = accumulate(rows);
   const allSightings = [...riderSightings, ...portraitSightings(rangerExcludeKeys(rows))];
-  const mergedRiders = mergeRiderSightings(allSightings, DEFAULT_COUNTRY);
-  const riders = assignIdsAndSlugs(mergedRiders);
-
+  const riders = assignIdsAndSlugs(mergeRiderSightings(allSightings, DEFAULT_COUNTRY));
   const duplicatesMerged = allSightings.length - riders.length;
 
   if (printOnly) {
@@ -269,7 +443,6 @@ async function main() {
   const riderIndex = buildBucketIndex(manifest, 'riders');
   const rangerIndex = buildBucketIndex(manifest, 'rangers');
   const unmatched: string[] = [];
-
   const resolvedRiders = await mapWithConcurrency(riders, 4, async r => ({
     ...r,
     photo: await resolvePhoto(r.displayName, r.photo, 'riders', riderIndex, manifest, unmatched),
@@ -278,14 +451,10 @@ async function main() {
     ...r,
     photo: await resolvePhoto(r.name, r.photo, 'rangers', rangerIndex, manifest, unmatched),
   }));
-
   if (unmatched.length) {
-    console.log(
-      `\n⚠️  ${unmatched.length} people with no portrait match and no spreadsheet photo:`
-    );
+    console.log(`\n⚠️  ${unmatched.length} people with no portrait match and no spreadsheet photo:`);
     unmatched.forEach(n => console.log(`   - ${n}`));
   }
-
   console.log(
     `\n👥 ${riders.length} unique riders (merged ${duplicatesMerged} duplicate sightings), ${rangers.length} rangers`
   );
@@ -293,160 +462,31 @@ async function main() {
 
   const prisma = new PrismaClient();
   try {
-    const tenant = await prisma.tenant.findUnique({ where: { slug: TENANT_SLUG } });
-    if (!tenant) throw new Error(`Tenant '${TENANT_SLUG}' not found.`);
-    console.log(`\n✅ Tenant: ${tenant.name} (${tenant.id})`);
-
-    const rallyRows = await prisma.rally.findMany({
-      where: { tenantId: tenant.id },
-      select: { id: true, slug: true },
-    });
-    const rallyIdBySlug = new Map(rallyRows.map(r => [r.slug, r.id]));
-
-    const existingRiderIds = (
-      await prisma.participant.findMany({
-        where: { tenantId: tenant.id, id: { startsWith: 'rfr-rider-' } },
-        select: { id: true, firstName: true, lastName: true },
-      })
-    ).map(p => p);
-    const producedIds = new Set(resolvedRiders.map(r => r.id));
-    const toDelete = existingRiderIds.filter(p => !producedIds.has(p.id));
-
-    const linkable = resolvedRiders.reduce(
-      (n, r) => n + Array.from(r.rallies.keys()).filter(s => rallyIdBySlug.has(s)).length,
-      0
-    );
-    console.log(
-      `📋 Plan — upsert ${resolvedRiders.length} riders (${linkable} rally links), ${resolvedRangers.length} rangers`
-    );
-    if (toDelete.length) {
-      console.log(
-        `🗑️  Will delete ${toDelete.length} stale rfr-rider-* participants (merged away by renormalisation):`
-      );
-      toDelete.forEach(p => console.log(`   - ${p.id} (${p.firstName} ${p.lastName})`));
-    }
-
-    if (!commit) {
-      console.log('\n🚫 Dry run — nothing written. Re-run with --commit to apply.');
-      return;
-    }
-
-    if (toDelete.length) {
-      await prisma.participantRally.deleteMany({
-        where: { participantId: { in: toDelete.map(p => p.id) } },
-      });
-      await prisma.participant.deleteMany({ where: { id: { in: toDelete.map(p => p.id) } } });
-    }
-
-    let ridersDone = 0;
-    let linksDone = 0;
-    for (const r of resolvedRiders) {
-      const [first, ...rest] = r.displayName.split(' ');
-      await prisma.participant.upsert({
-        where: { id: r.id },
-        update: {
-          firstName: first,
-          lastName: rest.join(' '),
-          slug: r.slug,
-          country: r.country,
-          bio: r.bio || null,
-          photo: r.photo,
-          isActive: true,
-        },
-        create: {
-          id: r.id,
-          firstName: first,
-          lastName: rest.join(' '),
-          slug: r.slug,
-          country: r.country,
-          bio: r.bio || null,
-          photo: r.photo,
-          displayOrder: ridersDone,
-          isActive: true,
-          tenantId: tenant.id,
-        },
-      });
-      // Replace this rider's links atomically to match the freshly computed set exactly.
-      await prisma.participantRally.deleteMany({ where: { participantId: r.id } });
-      for (const [slug, { year, role }] of r.rallies.entries()) {
-        const rallyId = rallyIdBySlug.get(slug);
-        if (!rallyId) continue;
-        await prisma.participantRally.create({
-          data: { participantId: r.id, rallyId, year, role: role ?? 'Rider' },
-        });
-        linksDone++;
-      }
-      ridersDone++;
-    }
-
-    let rangersDone = 0;
-    for (const r of resolvedRangers) {
-      await prisma.ranger.upsert({
-        where: { id: r.id },
-        update: {
-          name: r.name,
-          parkName: r.parkName || FALLBACK_PARK_NAME,
-          country: r.country,
-          bio: r.bio || null,
-          photo: r.photo,
-          displayOrder: r.displayOrder,
-          isActive: true,
-        },
-        create: {
-          id: r.id,
-          name: r.name,
-          parkName: r.parkName || FALLBACK_PARK_NAME,
-          country: r.country,
-          bio: r.bio || null,
-          photo: r.photo,
-          displayOrder: r.displayOrder,
-          isActive: true,
-          tenantId: tenant.id,
-        },
-      });
-      rangersDone++;
-    }
-
+    const { tenantId, rallyIdBySlug } = await loadTenantContext(prisma);
+    console.log(`📋 Plan — upsert ${resolvedRangers.length} rangers`);
+    if (!(await writeRiders(prisma, tenantId, rallyIdBySlug, resolvedRiders, commit))) return;
+    await writeRangers(prisma, tenantId, resolvedRangers);
     writeManifest(manifest);
-
-    const [totalRiders, ridersWithPhoto, linksTotal] = await Promise.all([
-      prisma.participant.count({ where: { tenantId: tenant.id } }),
-      prisma.participant.count({ where: { tenantId: tenant.id, photo: { not: null } } }),
-      prisma.participantRally.count({
-        where: { participant: { tenantId: tenant.id } },
-      }),
-    ]);
-    const topRiders = await prisma.participant.findMany({
-      where: { tenantId: tenant.id },
-      include: { _count: { select: { rallies: true } } },
-      orderBy: { rallies: { _count: 'desc' } },
-      take: 10,
-    });
-    const ridersPerRallySlug = await Promise.all(
-      Array.from(rallyIdBySlug.entries()).map(async ([slug, rallyId]) => [
-        slug,
-        await prisma.participantRally.count({ where: { rallyId } }),
-      ])
-    );
-
-    console.log(
-      `\n🎉 Done. Riders: ${ridersDone} (${linksDone} rally links), Rangers: ${rangersDone}. Deleted stale: ${toDelete.length}.`
-    );
-    console.log(
-      `\n📈 Final counts — total riders: ${totalRiders}, with photo: ${ridersWithPhoto}, links: ${linksTotal}`
-    );
-    console.log('\n🥇 Top 10 riders by rally count:');
-    topRiders.forEach(r =>
-      console.log(`   ${(r.firstName + ' ' + r.lastName).padEnd(28)} ${r._count.rallies}`)
-    );
-    console.log('\n📍 Riders per rally slug:');
-    ridersPerRallySlug
-      .filter(([, count]) => (count as number) > 0)
-      .sort(([a], [b]) => (a as string).localeCompare(b as string))
-      .forEach(([slug, count]) => console.log(`   ${(slug as string).padEnd(22)} ${count}`));
+    await printFinalCounts(prisma, tenantId, rallyIdBySlug);
   } finally {
     await prisma.$disconnect();
   }
+}
+
+function sheetPathFromArgs(argv: string[]): string | null {
+  const i = argv.indexOf('--from-sheet');
+  if (i < 0) return null;
+  const raw = argv[i + 1];
+  if (!raw || raw.startsWith('--')) throw new Error('--from-sheet needs an .xlsx path');
+  return path.resolve(raw.replace(/^~(?=\/)/, os.homedir()));
+}
+
+async function main() {
+  const argv = process.argv.slice(2);
+  const commit = argv.includes('--commit');
+  const sheetPath = sheetPathFromArgs(argv);
+  if (sheetPath) return runFromSheet(sheetPath, commit);
+  return runFromSources(argv.includes('--print'), commit);
 }
 
 main().catch(e => {

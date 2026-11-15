@@ -1,4 +1,19 @@
-import { normaliseRiderName, riderMergeKey, mergeRiderSightings } from './rider-merge';
+import { normaliseRiderName, riderMergeKey, mergeRiderSightings, splitRiderName } from './rider-merge';
+
+describe('splitRiderName', () => {
+  it.each([
+    ['Wesley Thornberry', 'Wesley', 'Thornberry'],
+    ['Anne Elizabeth Williams', 'Anne Elizabeth', 'Williams'],
+    ['Ed B. Medlin', 'Ed B.', 'Medlin'],
+    ['Kent De Groot', 'Kent', 'De Groot'],
+    ['Seth San Filippo', 'Seth', 'San Filippo'],
+    ['Sebastiaan de With', 'Sebastiaan', 'de With'],
+    ['Doug Van Ommeran', 'Doug', 'Van Ommeran'],
+    ['Martin', 'Martin', ''],
+  ])('%s -> first "%s", last "%s"', (full, first, last) => {
+    expect(splitRiderName(full)).toEqual({ firstName: first, lastName: last });
+  });
+});
 
 describe('normaliseRiderName', () => {
   it('strips a trailing " - YYYY" suffix', () => {

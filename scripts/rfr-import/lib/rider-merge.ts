@@ -35,6 +35,22 @@ export function riderMergeKey(raw: string): string {
     .replace(/[^a-z0-9]/g, '');
 }
 
+/** Surname particles that belong to the last name ("De Groot", "San Filippo", "de With"). */
+const SURNAME_PARTICLES = new Set(['de', 'van', 'von', 'der', 'den', 'san', 'del', 'della', 'da', 'di', 'du', 'le', 'la']);
+
+/**
+ * Split a display name into first/last for sorting by last name: the last word is the
+ * surname, together with any particles right before it; everything before is the first name
+ * (middle names and initials included).
+ */
+export function splitRiderName(full: string): { firstName: string; lastName: string } {
+  const words = full.trim().split(/\s+/).filter(Boolean);
+  if (words.length <= 1) return { firstName: words[0] ?? '', lastName: '' };
+  let start = words.length - 1;
+  while (start > 1 && SURNAME_PARTICLES.has(words[start - 1].toLowerCase())) start -= 1;
+  return { firstName: words.slice(0, start).join(' '), lastName: words.slice(start).join(' ') };
+}
+
 export interface RiderSighting {
   /** Raw name exactly as it appeared in the source (sheet row or portrait filename). */
   rawName: string;
@@ -50,6 +66,9 @@ export interface RiderSighting {
 export interface MergedRider {
   key: string;
   displayName: string;
+  /** Explicit name parts (master sheet); otherwise derived with `splitRiderName`. */
+  firstName?: string;
+  lastName?: string;
   bio: string;
   country: string;
   photo: string | null;
