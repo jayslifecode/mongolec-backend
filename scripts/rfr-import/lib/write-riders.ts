@@ -41,6 +41,33 @@ export function planRiderWrite(existing: ExistingParticipantRow[], riders: Resol
   return { toDelete, collisions };
 }
 
+export interface RiderLinkChange {
+  name: string;
+  added: string[];
+  removed: string[];
+}
+
+/**
+ * Per-rider rally-link changes the write would make, for the dry-run report. `before` maps a
+ * participant id to its current rally slugs. With `managedRallySlugs` (master-sheet mode), only
+ * links to those rallies can be removed. Riders with no change are omitted.
+ */
+export function diffRiderLinks(
+  before: Map<string, string[]>,
+  riders: ResolvedRider[],
+  managedRallySlugs?: Set<string>
+): RiderLinkChange[] {
+  return riders.flatMap(r => {
+    const current = before.get(r.id) ?? [];
+    const next = new Set(r.rallies.keys());
+    const added = Array.from(next).filter(slug => !current.includes(slug));
+    const removed = current.filter(
+      slug => !next.has(slug) && (!managedRallySlugs || managedRallySlugs.has(slug))
+    );
+    return added.length || removed.length ? [{ name: r.displayName, added, removed }] : [];
+  });
+}
+
 interface ParticipantFields {
   firstName: string;
   lastName: string;

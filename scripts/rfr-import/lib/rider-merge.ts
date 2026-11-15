@@ -77,6 +77,31 @@ export interface MergedRider {
 }
 
 /** Fold every sighting into one record per person, keyed by `riderMergeKey`. */
+type RallyLinks = MergedRider['rallies'];
+
+/** A rally link is added, or upgraded when the earlier sighting had no year. */
+function withRally(rallies: RallyLinks, sighting: RiderSighting): RallyLinks {
+  if (!sighting.rallySlug) return rallies;
+  const existing = rallies.get(sighting.rallySlug);
+  if (existing && !(existing.year === null && sighting.year != null)) return rallies;
+  return new Map(rallies).set(sighting.rallySlug, {
+    year: sighting.year ?? null,
+    role: sighting.role ?? 'Rider',
+  });
+}
+
+/** Fold one more sighting into a rider: longest bio wins (with its name casing); first photo kept. */
+function foldSighting(merged: MergedRider, sighting: RiderSighting, displayName: string, bio: string): MergedRider {
+  const longerBio = bio.length > merged.bio.length;
+  return {
+    ...merged,
+    bio: longerBio ? bio : merged.bio,
+    displayName: longerBio ? displayName : merged.displayName,
+    photo: merged.photo ?? sighting.photo ?? null,
+    rallies: withRally(merged.rallies, sighting),
+  };
+}
+
 export function mergeRiderSightings(
   sightings: RiderSighting[],
   defaultCountry: string
@@ -88,36 +113,18 @@ export function mergeRiderSightings(
     if (!displayName) continue;
     const key = riderMergeKey(displayName);
     const bio = (sighting.bio ?? '').trim();
-
-    let merged = byKey.get(key);
-    if (!merged) {
-      merged = {
-        key,
-        displayName,
-        bio,
-        country: sighting.country || defaultCountry,
-        photo: sighting.photo ?? null,
-        rallies: new Map(),
-      };
-      byKey.set(key, merged);
-    } else {
-      // Longest bio wins; its name casing becomes the display name.
-      if (bio.length > merged.bio.length) {
-        merged.bio = bio;
-        merged.displayName = displayName;
-      }
-      if (!merged.photo && sighting.photo) merged.photo = sighting.photo;
-    }
-
-    if (sighting.rallySlug) {
-      const existing = merged.rallies.get(sighting.rallySlug);
-      if (!existing || (existing.year === null && sighting.year !== null)) {
-        merged.rallies.set(sighting.rallySlug, {
-          year: sighting.year ?? null,
-          role: sighting.role ?? 'Rider',
-        });
-      }
-    }
+    const current = byKey.get(key);
+    const next = current
+      ? foldSighting(current, sighting, displayName, bio)
+      : {
+          key,
+          displayName,
+          bio,
+          country: sighting.country || defaultCountry,
+          photo: sighting.photo ?? null,
+          rallies: withRally(new Map(), sighting),
+        };
+    byKey.set(key, next);
   }
 
   return Array.from(byKey.values());

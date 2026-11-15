@@ -85,6 +85,12 @@ describe('toSheetRows', () => {
     expect(header).toEqual([...SHEET_FIXED_HEADERS, 'Mongolia 2014', 'Argentina 2018', 'Bhutan 2024']);
   });
 
+  it('refuses two rallies with the same title (their columns would be indistinguishable)', () => {
+    expect(() =>
+      toSheetRows(sample, [...rallies, { slug: 'mongolia-2014-b', title: 'Mongolia 2014' }])
+    ).toThrow(/same title "Mongolia 2014".*mongolia-2014.*mongolia-2014-b/);
+  });
+
   it('marks attended rallies with x and derives count and countries', () => {
     const rows = toSheetRows(sample, rallies);
     expect(rows[1]).toEqual(['Appel', 'Lester', '2', 'Mongolia, Bhutan', 'x', '', 'x']);
@@ -112,6 +118,23 @@ describe('fromSheetRows', () => {
   it('throws naming row 1 when a rally column is not in the rally key', () => {
     const rows = [[...SHEET_FIXED_HEADERS, 'Black Hills 2024'], ['Appel', 'Lester', '', '', 'x']];
     expect(() => fromSheetRows(rows, rallyKey)).toThrow(/row 1/);
+  });
+
+  it('throws naming row 1 when the fixed columns are out of order', () => {
+    const rows = [['First name', 'Last name', 'Rallies (count)', 'Countries', 'Mongolia 2014'], ['Lester', 'Appel', '', '', 'x']];
+    expect(() => fromSheetRows(rows, rallyKey)).toThrow(/row 1.*"Last name"/);
+  });
+
+  it('ignores an empty trailing column (spreadsheet dimension creep)', () => {
+    const rows = [[...SHEET_FIXED_HEADERS, 'Mongolia 2014', ''], ['Appel', 'Lester', '', '', 'x', '']];
+    expect(fromSheetRows(rows, rallyKey)).toEqual([
+      { firstName: 'Lester', lastName: 'Appel', rallySlugs: ['mongolia-2014'] },
+    ]);
+  });
+
+  it('throws when a column with no rally name has marks in it', () => {
+    const rows = [[...SHEET_FIXED_HEADERS, 'Mongolia 2014', ''], ['Appel', 'Lester', '', '', 'x', 'x']];
+    expect(() => fromSheetRows(rows, rallyKey)).toThrow(/column 6 has no rally name/);
   });
 
   it('throws naming the row when a marked row has no name', () => {

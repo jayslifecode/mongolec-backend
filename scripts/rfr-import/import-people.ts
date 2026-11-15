@@ -55,7 +55,7 @@ import { nameFromFilename, scanPortraitFolders } from './lib/portrait-folders';
 import { parseGroupHeader, type GroupHeader } from './lib/sheet-groups';
 import { fromSheetRows, mergeSheetRiders } from './lib/rider-sheet';
 import { readRiderSheet } from './lib/rider-sheet-file';
-import { applyRiderWrite, planRiderWrite, type ResolvedRider } from './lib/write-riders';
+import { applyRiderWrite, diffRiderLinks, planRiderWrite, type ResolvedRider } from './lib/write-riders';
 import { wordpressPhoto } from './lib/wordpress-photo';
 
 const TENANT_SLUG = 'rally-for-rangers';
@@ -378,6 +378,30 @@ async function printFinalCounts(
     .forEach(r => console.log(`   ${r.slug.padEnd(22)} ${r.count}`));
 }
 
+/** Participant id -> the rally slugs it is linked to now. */
+async function currentLinks(prisma: PrismaClient, tenantId: string): Promise<Map<string, string[]>> {
+  const links = await prisma.participantRally.findMany({
+    where: { participant: { tenantId } },
+    select: { participantId: true, rally: { select: { slug: true } } },
+  });
+  return links.reduce((byId, link) => {
+    byId.set(link.participantId, [...(byId.get(link.participantId) ?? []), link.rally.slug]);
+    return byId;
+  }, new Map<string, string[]>());
+}
+
+function printLinkChanges(before: Map<string, string[]>, riders: ResolvedRider[], managed: Set<string>) {
+  const changes = diffRiderLinks(before, riders, managed);
+  console.log(`\n🔁 ${changes.length} riders whose rallies change:`);
+  changes.forEach(c => {
+    const parts = [
+      c.added.length ? `+ ${c.added.join(', ')}` : '',
+      c.removed.length ? `− ${c.removed.join(', ')}` : '',
+    ].filter(Boolean);
+    console.log(`   ${c.name.padEnd(28)} ${parts.join('   ')}`);
+  });
+}
+
 /** `--from-sheet <xlsx>`: the master sheet alone decides riders and their rally links. */
 async function runFromSheet(sheetPath: string, commit: boolean) {
   const { rows, rallyKey } = await readRiderSheet(sheetPath);
@@ -403,6 +427,7 @@ async function runFromSheet(sheetPath: string, commit: boolean) {
     }
     printSummary(riders);
     const managedRallySlugs = new Set(rallyKey.values());
+    printLinkChanges(await currentLinks(prisma, tenantId), riders, managedRallySlugs);
     if (await writeRiders(prisma, tenantId, rallyIdBySlug, riders, commit, managedRallySlugs)) {
       await printFinalCounts(prisma, tenantId, rallyIdBySlug);
     }

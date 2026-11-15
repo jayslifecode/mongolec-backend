@@ -34,3 +34,43 @@ export function loadRoster(raw: string): RosterMember[] {
     };
   });
 }
+
+export interface TeamMemberRow {
+  name: string;
+  role: string;
+  bio: string | null;
+  photo: string | null;
+  displayOrder: number;
+  isActive: boolean;
+}
+
+/** The subset of a Prisma client the team upsert uses. */
+export interface TeamMemberClient {
+  teamMember: {
+    findFirst(args: { where: { tenantId: string; name: string; deletedAt: null } }): Promise<{ id: string } | null>;
+    update(args: {
+      where: { id: string };
+      data: Omit<TeamMemberRow, 'name'>;
+    }): Promise<unknown>;
+    create(args: { data: TeamMemberRow & { tenantId: string } }): Promise<unknown>;
+  };
+}
+
+/**
+ * Upsert by (tenant, name) against live rows only: a soft-deleted row with the same name is
+ * left alone (updating it would leave the member hidden, since public queries skip deleted rows).
+ */
+export async function upsertTeamMember(
+  client: TeamMemberClient,
+  tenantId: string,
+  member: TeamMemberRow
+): Promise<'created' | 'updated'> {
+  const existing = await client.teamMember.findFirst({ where: { tenantId, name: member.name, deletedAt: null } });
+  const { name, ...data } = member;
+  if (existing) {
+    await client.teamMember.update({ where: { id: existing.id }, data });
+    return 'updated';
+  }
+  await client.teamMember.create({ data: { ...data, name, tenantId } });
+  return 'created';
+}

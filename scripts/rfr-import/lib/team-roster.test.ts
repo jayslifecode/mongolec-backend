@@ -1,6 +1,6 @@
 import * as fs from 'fs';
 import * as path from 'path';
-import { loadRoster } from './team-roster';
+import { loadRoster, upsertTeamMember } from './team-roster';
 
 const ROSTER_FILE = path.join(__dirname, '..', 'data', 'team-roster.json');
 
@@ -50,5 +50,46 @@ describe('loadRoster validation', () => {
 
   it('throws when the file is not an array', () => {
     expect(() => loadRoster('{}')).toThrow(/array/);
+  });
+});
+
+describe('upsertTeamMember', () => {
+  const member = { name: 'Tom Medema', role: 'Co-Founder', bio: 'bio', photo: null, displayOrder: 1, isActive: true };
+
+  function fakeClient(existing: { id: string } | null) {
+    const calls: Array<{ op: string; args: unknown }> = [];
+    const client = {
+      teamMember: {
+        findFirst: async (args: unknown) => {
+          calls.push({ op: 'findFirst', args });
+          return existing;
+        },
+        update: async (args: unknown) => {
+          calls.push({ op: 'update', args });
+          return {};
+        },
+        create: async (args: unknown) => {
+          calls.push({ op: 'create', args });
+          return {};
+        },
+      },
+    };
+    return { client, calls };
+  }
+
+  it('only matches live (not soft-deleted) rows by name', async () => {
+    const { client, calls } = fakeClient(null);
+    await upsertTeamMember(client, 't1', member);
+    expect(calls[0]).toEqual({ op: 'findFirst', args: { where: { tenantId: 't1', name: 'Tom Medema', deletedAt: null } } });
+  });
+
+  it('updates a live row in place and creates otherwise', async () => {
+    const live = fakeClient({ id: 'tm1' });
+    expect(await upsertTeamMember(live.client, 't1', member)).toBe('updated');
+    expect(live.calls[1]).toMatchObject({ op: 'update', args: { where: { id: 'tm1' } } });
+
+    const none = fakeClient(null);
+    expect(await upsertTeamMember(none.client, 't1', member)).toBe('created');
+    expect(none.calls[1]).toMatchObject({ op: 'create', args: { data: { name: 'Tom Medema', tenantId: 't1' } } });
   });
 });

@@ -1,4 +1,4 @@
-import { applyRiderWrite, planRiderWrite, type ResolvedRider, type RiderWriteClient } from './write-riders';
+import { applyRiderWrite, diffRiderLinks, planRiderWrite, type ResolvedRider, type RiderWriteClient } from './write-riders';
 
 function rider(slug: string, displayName: string, rallies: string[] = [], extra: Partial<ResolvedRider> = {}): ResolvedRider {
   return {
@@ -54,6 +54,31 @@ describe('planRiderWrite', () => {
     );
     expect(plan.collisions).toEqual([{ id: 'ckadmin123', slug: 'anna-kim', name: 'Anna Kim' }]);
     expect(plan.toDelete).toEqual([]);
+  });
+});
+
+describe('diffRiderLinks', () => {
+  it('lists added and removed rallies per rider, and new riders with everything added', () => {
+    const before = new Map([
+      ['rfr-rider-anna-kim', ['mongolia-2014', 'bhutan-2024', 'mongolia-2027']],
+    ]);
+    const riders = [
+      rider('anna-kim', 'Anna Kim', ['mongolia-2014', 'peru-2022']),
+      rider('jane-doe', 'Jane Doe', ['laos-2025']),
+      rider('wesley-thornberry', 'Wesley Thornberry', []),
+    ];
+    expect(diffRiderLinks(before, riders)).toEqual([
+      { name: 'Anna Kim', added: ['peru-2022'], removed: ['bhutan-2024', 'mongolia-2027'] },
+      { name: 'Jane Doe', added: ['laos-2025'], removed: [] },
+    ]);
+  });
+
+  it('with managed rallies, never reports links outside them as removed', () => {
+    const before = new Map([['rfr-rider-anna-kim', ['mongolia-2014', 'mongolia-2027']]]);
+    const riders = [rider('anna-kim', 'Anna Kim', [])];
+    expect(diffRiderLinks(before, riders, new Set(['mongolia-2014']))).toEqual([
+      { name: 'Anna Kim', added: [], removed: ['mongolia-2014'] },
+    ]);
   });
 });
 

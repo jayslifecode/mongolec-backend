@@ -23,7 +23,7 @@ import * as path from 'path';
 import { readManifest, writeManifest } from './lib/manifest';
 import { reuploadWordpressPhoto } from './lib/reupload-wordpress';
 import { isWordpressUrl, kebab, normaliseName } from './lib/text';
-import { loadRoster } from './lib/team-roster';
+import { loadRoster, upsertTeamMember } from './lib/team-roster';
 import { wordpressPhoto } from './lib/wordpress-photo';
 
 const TENANT_SLUG = 'rally-for-rangers';
@@ -101,17 +101,6 @@ async function loadBoardMembers(core: TeamRow[], manifest: Manifest, allowReuplo
   return members;
 }
 
-async function upsertMember(prisma: PrismaClient, tenantId: string, m: TeamRow): Promise<'created' | 'updated'> {
-  const existing = await prisma.teamMember.findFirst({ where: { tenantId, name: m.name } });
-  const data = { role: m.role, bio: m.bio, photo: m.photo, displayOrder: m.displayOrder, isActive: m.isActive };
-  if (existing) {
-    await prisma.teamMember.update({ where: { id: existing.id }, data });
-    return 'updated';
-  }
-  await prisma.teamMember.create({ data: { ...data, name: m.name, tenantId } });
-  return 'created';
-}
-
 async function main() {
   const args = new Set(process.argv.slice(2));
   const commit = args.has('--commit');
@@ -153,7 +142,7 @@ async function main() {
     }
 
     for (const m of [...core, ...board]) {
-      const outcome = await upsertMember(prisma, tenant.id, m);
+      const outcome = await upsertTeamMember(prisma, tenant.id, m);
       console.log(`  ✅ ${outcome} ${m.name} (${m.role})`);
     }
     const hidden = await prisma.teamMember.updateMany({
