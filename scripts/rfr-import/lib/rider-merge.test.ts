@@ -1,4 +1,19 @@
-import { normaliseRiderName, riderMergeKey, mergeRiderSightings } from './rider-merge';
+import { normaliseRiderName, riderMergeKey, mergeRiderSightings, splitRiderName } from './rider-merge';
+
+describe('splitRiderName', () => {
+  it.each([
+    ['Wesley Thornberry', 'Wesley', 'Thornberry'],
+    ['Anne Elizabeth Williams', 'Anne Elizabeth', 'Williams'],
+    ['Ed B. Medlin', 'Ed B.', 'Medlin'],
+    ['Kent De Groot', 'Kent', 'De Groot'],
+    ['Seth San Filippo', 'Seth', 'San Filippo'],
+    ['Sebastiaan de With', 'Sebastiaan', 'de With'],
+    ['Doug Van Ommeran', 'Doug', 'Van Ommeran'],
+    ['Martin', 'Martin', ''],
+  ])('%s -> first "%s", last "%s"', (full, first, last) => {
+    expect(splitRiderName(full)).toEqual({ firstName: first, lastName: last });
+  });
+});
 
 describe('normaliseRiderName', () => {
   it('strips a trailing " - YYYY" suffix', () => {
@@ -20,6 +35,15 @@ describe('normaliseRiderName', () => {
   it('handles a missing space before the dash', () => {
     expect(normaliseRiderName('Shawn Lewis- 2022')).toBe('Shawn Lewis');
   });
+
+  it.each([
+    ['Graham Cashwell 2024', 'Graham Cashwell'],
+    ['Jim Britven  2025', 'Jim Britven'],
+    ['Nelson (Kathleen) Corcoras', 'Nelson Corcoras'],
+    ['Anne Elizabeth (Beth) Williams', 'Anne Elizabeth Williams'],
+  ])('normaliseRiderName(%s) -> %s', (raw, out) => {
+    expect(normaliseRiderName(raw)).toBe(out);
+  });
 });
 
 describe('riderMergeKey', () => {
@@ -27,6 +51,20 @@ describe('riderMergeKey', () => {
     expect(riderMergeKey('WESLEY THORNBERRY - 2022')).toBe(
       riderMergeKey('wesley thornberry - 2019')
     );
+  });
+
+  it.each([
+    ['André Angelantoni', 'Andre Angelantoni'],
+    ['T.J. Tucciarone', 'TJ Tucciarone'],
+    ["Antoni D'Avanzo", 'Antoni D Avanzo'],
+    ['Donald E. Johnson 2024', 'Donald E Johnson'],
+    ['Steven Croft 2024', 'Steven Croft'],
+  ])('merges %s with %s', (a, b) => {
+    expect(riderMergeKey(a)).toBe(riderMergeKey(b));
+  });
+
+  it('does not merge different people', () => {
+    expect(riderMergeKey('Anna Kim')).not.toBe(riderMergeKey('Kim Sarao'));
   });
 });
 
@@ -86,6 +124,21 @@ describe('mergeRiderSightings', () => {
       'Mongolia'
     );
     expect(merged[0].photo).toBe('https://example.com/jane.jpg');
+  });
+
+  it('merges accent and year-suffix variants of one person into one record', () => {
+    const merged = mergeRiderSightings(
+      [
+        { rawName: 'André Angelantoni', rallySlug: 'mongolia-2015', year: 2015 },
+        { rawName: 'Andre Angelantoni - 2019', rallySlug: 'nepal-2019', year: 2019 },
+        { rawName: 'Graham Cashwell 2024', rallySlug: 'mongolia-2024', year: 2024 },
+        { rawName: 'Graham Cashwell', bio: 'Graham bio', rallySlug: 'laos-2025', year: 2025 },
+      ],
+      'Mongolia'
+    );
+    expect(merged).toHaveLength(2);
+    const graham = merged.find(m => m.displayName === 'Graham Cashwell');
+    expect(graham?.rallies.size).toBe(2);
   });
 
   it('ignores a blank name', () => {

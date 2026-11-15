@@ -21,10 +21,13 @@ export function buildBucketIndex(manifest: Manifest, bucket: PortraitBucket): Ma
   return index;
 }
 
-/** Returns the manifest URL for the best name match, or null if nothing matches. */
+/**
+ * Returns the manifest URL for the best name match, or null if nothing matches. Index keys
+ * have hyphens turned into spaces, so hyphenated names ("Anna-Louise") are tried that way too.
+ */
 export function matchPortrait(fullName: string, index: Map<string, string>): string | null {
   for (const candidate of nameMatchCandidates(fullName)) {
-    const hit = index.get(candidate);
+    const hit = index.get(candidate) ?? index.get(candidate.replace(/-/g, ' '));
     if (hit) return hit;
   }
   return null;

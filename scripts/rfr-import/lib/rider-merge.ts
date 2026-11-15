@@ -8,17 +8,47 @@
  * into one record (longest bio wins; its casing becomes the display name).
  */
 
-/** Strip a trailing " - YYYY" (and anything after it) and collapse whitespace. */
+/** "(Kathleen)" style nickname groups. */
+const PARENTHETICAL = /\([^)]*\)/g;
+/** A trailing year (with or without a leading dash) and anything after it: "Name - 2022 Bhutan", "Name 2024". */
+const TRAILING_YEAR = /\s*(?:-\s*)?\b(?:19|20)\d{2}\b.*$/;
+
+/** Drop nickname parentheticals and a trailing year suffix, then collapse whitespace. */
 export function normaliseRiderName(raw: string): string {
   return raw
-    .replace(/\s*-\s*\d{4}\b.*$/, '')
+    .replace(PARENTHETICAL, ' ')
+    .replace(TRAILING_YEAR, '')
     .replace(/\s+/g, ' ')
     .trim();
 }
 
-/** Case-folded key used to merge sightings of the same person across sources. */
+/**
+ * Key used to merge sightings of the same person across sources: accents, case, punctuation
+ * and spacing are all folded away, so "André", "T.J." and "D'Avanzo" match "Andre", "TJ"
+ * and "D Avanzo".
+ */
 export function riderMergeKey(raw: string): string {
-  return normaliseRiderName(raw).toLowerCase();
+  return normaliseRiderName(raw)
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]/g, '');
+}
+
+/** Surname particles that belong to the last name ("De Groot", "San Filippo", "de With"). */
+const SURNAME_PARTICLES = new Set(['de', 'van', 'von', 'der', 'den', 'san', 'del', 'della', 'da', 'di', 'du', 'le', 'la']);
+
+/**
+ * Split a display name into first/last for sorting by last name: the last word is the
+ * surname, together with any particles right before it; everything before is the first name
+ * (middle names and initials included).
+ */
+export function splitRiderName(full: string): { firstName: string; lastName: string } {
+  const words = full.trim().split(/\s+/).filter(Boolean);
+  if (words.length <= 1) return { firstName: words[0] ?? '', lastName: '' };
+  let start = words.length - 1;
+  while (start > 1 && SURNAME_PARTICLES.has(words[start - 1].toLowerCase())) start -= 1;
+  return { firstName: words.slice(0, start).join(' '), lastName: words.slice(start).join(' ') };
 }
 
 export interface RiderSighting {
@@ -36,6 +66,9 @@ export interface RiderSighting {
 export interface MergedRider {
   key: string;
   displayName: string;
+  /** Explicit name parts (master sheet); otherwise derived with `splitRiderName`. */
+  firstName?: string;
+  lastName?: string;
   bio: string;
   country: string;
   photo: string | null;
@@ -44,6 +77,31 @@ export interface MergedRider {
 }
 
 /** Fold every sighting into one record per person, keyed by `riderMergeKey`. */
+type RallyLinks = MergedRider['rallies'];
+
+/** A rally link is added, or upgraded when the earlier sighting had no year. */
+function withRally(rallies: RallyLinks, sighting: RiderSighting): RallyLinks {
+  if (!sighting.rallySlug) return rallies;
+  const existing = rallies.get(sighting.rallySlug);
+  if (existing && !(existing.year === null && sighting.year != null)) return rallies;
+  return new Map(rallies).set(sighting.rallySlug, {
+    year: sighting.year ?? null,
+    role: sighting.role ?? 'Rider',
+  });
+}
+
+/** Fold one more sighting into a rider: longest bio wins (with its name casing); first photo kept. */
+function foldSighting(merged: MergedRider, sighting: RiderSighting, displayName: string, bio: string): MergedRider {
+  const longerBio = bio.length > merged.bio.length;
+  return {
+    ...merged,
+    bio: longerBio ? bio : merged.bio,
+    displayName: longerBio ? displayName : merged.displayName,
+    photo: merged.photo ?? sighting.photo ?? null,
+    rallies: withRally(merged.rallies, sighting),
+  };
+}
+
 export function mergeRiderSightings(
   sightings: RiderSighting[],
   defaultCountry: string
@@ -53,38 +111,20 @@ export function mergeRiderSightings(
   for (const sighting of sightings) {
     const displayName = normaliseRiderName(sighting.rawName);
     if (!displayName) continue;
-    const key = displayName.toLowerCase();
+    const key = riderMergeKey(displayName);
     const bio = (sighting.bio ?? '').trim();
-
-    let merged = byKey.get(key);
-    if (!merged) {
-      merged = {
-        key,
-        displayName,
-        bio,
-        country: sighting.country || defaultCountry,
-        photo: sighting.photo ?? null,
-        rallies: new Map(),
-      };
-      byKey.set(key, merged);
-    } else {
-      // Longest bio wins; its name casing becomes the display name.
-      if (bio.length > merged.bio.length) {
-        merged.bio = bio;
-        merged.displayName = displayName;
-      }
-      if (!merged.photo && sighting.photo) merged.photo = sighting.photo;
-    }
-
-    if (sighting.rallySlug) {
-      const existing = merged.rallies.get(sighting.rallySlug);
-      if (!existing || (existing.year === null && sighting.year !== null)) {
-        merged.rallies.set(sighting.rallySlug, {
-          year: sighting.year ?? null,
-          role: sighting.role ?? 'Rider',
-        });
-      }
-    }
+    const current = byKey.get(key);
+    const next = current
+      ? foldSighting(current, sighting, displayName, bio)
+      : {
+          key,
+          displayName,
+          bio,
+          country: sighting.country || defaultCountry,
+          photo: sighting.photo ?? null,
+          rallies: withRally(new Map(), sighting),
+        };
+    byKey.set(key, next);
   }
 
   return Array.from(byKey.values());

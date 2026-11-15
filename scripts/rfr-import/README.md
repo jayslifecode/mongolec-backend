@@ -20,10 +20,10 @@ Spec: `rally-for-rangers-website/docs/superpowers/specs/2026-10-06-rfr-launch-de
    `B2_ACCESS_KEY_ID`, `B2_SECRET_ACCESS_KEY`, `B2_BUCKET_NAME`, `B2_PUBLIC_URL`.
 3. **Local resize/convert tools** (no sharp/ImageMagick on this box): macOS `sips` (built in)
    and `/opt/local/bin/cwebp`.
-4. **Source assets**: `~/Downloads/Website 2/` (the Drive export — rally photos, portraits,
-   staff bios, site section images). `data/website-data-2026-09.json` is the fresh spreadsheet
-   dump (sheets: Rallies, Staff Members, Testimonials, Riders by Rally); `data/staff-bios.txt`
-   holds the 7 core team bios.
+4. **Source assets**: `~/Downloads/Website/` (the Drive export — rally photos, rider and
+   ranger portraits, staff bios, site section images). `data/website-data-2026-09.json` is the fresh spreadsheet
+   dump (sheets: Rallies, Staff Members, Testimonials, Riders by Rally); `data/team-roster.json`
+   is the public team list (order, titles, bios, photo keys).
 5. A **tenant** named `rally-for-rangers` must already exist in the target DB.
 
 ## Run order
@@ -48,7 +48,14 @@ npx ts-node -r dotenv/config scripts/rfr-import/import-rallies.ts --commit
 #    rally, top riders by rally count).
 npx ts-node -r dotenv/config scripts/rfr-import/import-people.ts --commit
 
-# 4. Team — 7 core members from staff-bios.txt + spreadsheet board/advisor rows (inactive).
+# 3b. Master rider spreadsheet — export for the client (one row per rider, "x" per rally),
+#     then re-import their edited copy; the sheet alone decides riders and rally links.
+npx ts-node -r dotenv/config scripts/rfr-import/export-riders-sheet.ts --out ~/Downloads/RFR_Riders_Master.xlsx
+npx ts-node -r dotenv/config scripts/rfr-import/import-people.ts --from-sheet ~/Downloads/RFR_Riders_Master.xlsx            # dry run
+npx ts-node -r dotenv/config scripts/rfr-import/import-people.ts --from-sheet ~/Downloads/RFR_Riders_Master.xlsx --commit
+
+# 4. Team — data/team-roster.json (public, in order) + spreadsheet board/advisor rows (inactive);
+#    anyone else is hidden (isActive=false).
 npx ts-node -r dotenv/config scripts/rfr-import/import-team.ts --commit
 
 # 5. Testimonials — featuredImage from the manifest.
@@ -101,7 +108,7 @@ skipped silently (no error) and those links are simply not created — either mo
   portrait-folder scanning, manifest IO, asset discovery, image processing, B2 upload,
   portrait matching, WordPress-photo re-upload, story block types/builders) used by more than
   one importer, kept small and unit-testable (`lib/*.test.ts`, run via `npm test`).
-- `data/` — spreadsheet dumps (`website-data-2026-09.json`, `staff-bios.txt`) and the
+- `data/` — spreadsheet dumps (`website-data-2026-09.json`), `team-roster.json` and the
   generated `image-manifest.json`.
 
 ## Hero curation (2026-10-07)

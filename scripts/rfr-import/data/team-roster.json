@@ -1,0 +1,62 @@
+[
+  {
+    "name": "Wesley Thornberry",
+    "role": "Co-Founder",
+    "bio": "Wesley is a founding member of Rally for Rangers. Since its inception, he has helped spearhead the Rally for Rangers initiative, raising international awareness of Mongolia’s national parks and riding in every rally. Wesley is the founder of Trend Digital, which specializes in post-production imaging services for e-commerce clothing and fashion retailers. He is also a photographer, adventurer, and traveler who has documented cultures and communities from the tribes of the Omo Valley in Ethiopia to the nomadic shamans of Mongolia. Wesley currently lives in Ulaanbaatar, Mongolia.",
+    "photoKey": "rfr/team/wesley.webp"
+  },
+  {
+    "name": "Tom Medema",
+    "role": "Co-Founder",
+    "bio": "Tom developed a passion for national parks at a young age through family vacations throughout the American West. That passion grew into a career as a U.S. National Park Ranger spanning 35 years. Tom is equally passionate about national parks and public lands around the world and has worked with parks and monuments in South America, the Middle East, and Europe as a subject matter expert in interpretation and education. He is excited and humbled to support the protection of natural and cultural heritage in parks and protected areas around the world. An avid sports and outdoor enthusiast, Tom spends much of his free time on two wheels, riding mountain bikes, road bikes, and motorcycles. Over the past 30 years, he has owned Harley-Davidson and BMW motorcycles and currently rides a KLX300 on the trails of northern Michigan.",
+    "photoKey": "rfr/team/tom.webp"
+  },
+  {
+    "name": "Bryon Majusiak",
+    "role": "Honorary Board Member",
+    "bio": "Growing up in Reno, NV, Bryon grew up taking full advantage of the outdoors. Hiking, camping, fly fishing, and mountain biking filled Bryon’s childhood and it wasn’t until he moved to Berkeley, CA for college that he got his first taste of motorcycles. While at the University of California Berkeley, Bryon helped to build the world’s first autonomous motorcycle, Ghostrider. Working on that project got him hooked on motorcycles for life. One bike led to 2, then 3 and is currently at 9, although most don’t currently work (but will soon). In 2013 he completed an Iron Butt ride around NV and still looks for any opportunity to take on a new challenge or adventure on a motorcycle.\nWhen not spending time working on motorcycles and cars, Bryon has a real job working at a company building agricultural robots.\nAfter watching “The Long Way Round” Bryon put Mongolia on the top of his bucket list of places to travel. It was a quick decision to join Rally for Rangers after finding out he could ride motorcycles and do something valuable for the national parks of Mongolia.",
+    "photoKey": "rfr/team/bryon-majusiak.webp"
+  },
+  {
+    "name": "Badral Yondon",
+    "role": "Executive Director",
+    "bio": "Badral is the living encyclopedia of Mongolia and leads the Rally for Rangers team in Mongolia and internationally. His career in tourism began as a university student, when he worked as a hotel porter in Ulaanbaatar during Mongolia’s democratic revolution in 1990. Since then, he has become a leader in Mongolia’s tourism industry, with a deep commitment to sharing the country’s culture and heritage while protecting its unique biodiversity. As a founding member of Mongolia Quest, Badral has explored much of Mongolia’s vast countryside and shared his knowledge of its culture, landscapes, and biodiversity with hundreds of visitors over the past 25 years.",
+    "photoKey": "rfr/team/badral.webp"
+  },
+  {
+    "name": "Khongorzul Batbayar",
+    "role": "Program Lead",
+    "bio": "",
+    "photoKey": null
+  },
+  {
+    "name": "Orkhon Tsolmon",
+    "role": "Field Lead",
+    "bio": "Orkhon can fix almost any problem and make just about anything happen in the field. She is the magic behind the Rally for Rangers Mongolia team. Before joining the Mongol Ecology Center in 2014, Orkhon worked in the tourism industry for over a decade as the manager of the Baigali Uud tourist camp in Hatgal Village, Hovsgol Province. Today, she leads logistics and planning for Mongol Ecology Center programs, making sure everything comes together smoothly both on and off the road.",
+    "photoKey": "rfr/team/orkhon.webp"
+  },
+  {
+    "name": "Steve Zuschin",
+    "role": "RfR Ride Leader",
+    "bio": "",
+    "photoKey": "rfr/riders/steve-zuschin.webp"
+  },
+  {
+    "name": "Damdindorj “Daimaa” Purvee",
+    "role": "Chef",
+    "bio": "Daimaa is the master of the kitchen and can make a five-star meal in the middle of nowhere. After a long day of riding, participants can look forward to a delicious buffet prepared fresh by Daimaa. He has worked as a chef in the tourism industry for many years and has extensive experience preparing meals for high-end trips across Mongolia’s beautiful landscapes.",
+    "photoKey": "rfr/team/damdindorj.webp"
+  },
+  {
+    "name": "Baasandorj “Baaska” Enkhee",
+    "role": "Driver",
+    "bio": "Baaska has worked in the tourism industry since 2020. A professional welder, there is almost nothing he cannot fix, whether at camp, on a vehicle, or on a motorcycle. Together with Khashaa, Baaska forms part of the dream team behind our support fleet, helping keep the rally moving through Mongolia’s remote landscapes.",
+    "photoKey": "rfr/team/baasandorj.webp"
+  },
+  {
+    "name": "Khashbaatar “Khashaa” Davaakhuu",
+    "role": "Driver",
+    "bio": "Khashaa has worked in the tourism industry for 26 years. His trusted driving, navigation, and mechanical skills help everyone on the trip feel safe and comfortable. As our lead driver, he helps keep the motorcycle group safe and makes sure our support vehicles are where they need to be throughout the rally.",
+    "photoKey": "rfr/team/khashbaatar.webp"
+  }
+]
