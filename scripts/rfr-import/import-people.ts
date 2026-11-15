@@ -39,6 +39,7 @@ import { reuploadWordpressPhoto } from './lib/reupload-wordpress';
 import { isWordpressUrl, kebab } from './lib/text';
 import { mergeRiderSightings, type MergedRider, type RiderSighting } from './lib/rider-merge';
 import { scanPortraitFolders } from './lib/portrait-folders';
+import { parseGroupHeader, type GroupHeader } from './lib/sheet-groups';
 
 const TENANT_SLUG = 'rally-for-rangers';
 const DATA_FILE = path.join(__dirname, 'data', 'website-data-2026-09.json');
@@ -69,13 +70,6 @@ type RangerAcc = {
 
 type ResolvedRider = MergedRider & { id: string; slug: string; photo: string | null };
 
-/** Parse a group header: "2014  —  Lake Hovsgol National Park - Mongolia  (12 riders)". */
-function parseHeader(s: string): { year: number; park: string; country: string } | null {
-  const m = s.match(/^\s*(\d{4})\s*[—-]+\s*(.+?)\s*-\s*([^()]+?)\s*\(/);
-  if (!m) return null;
-  return { year: parseInt(m[1], 10), park: m[2].trim(), country: m[3].trim() };
-}
-
 function cleanPhoto(url: string): string | null {
   const u = (url || '').trim();
   return /^https?:\/\//i.test(u) ? u : null;
@@ -89,12 +83,12 @@ function isHeader(r: Row): boolean {
 function accumulate(rows: Row[]): { riderSightings: RiderSighting[]; rangers: RangerAcc[] } {
   const riderSightings: RiderSighting[] = [];
   const rangers = new Map<string, RangerAcc>();
-  let group: { year: number; park: string; country: string } | null = null;
+  let group: GroupHeader | null = null;
   let rangerOrder = 0;
 
   for (const r of rows) {
     if (isHeader(r)) {
-      group = parseHeader(r['#']);
+      group = parseGroupHeader(r['#']);
       continue;
     }
     if (!r.Name || !r.Type) continue;
@@ -128,8 +122,8 @@ function accumulate(rows: Row[]): { riderSightings: RiderSighting[]; rangers: Ra
       bio,
       photo,
       country,
-      rallySlug: group ? `${kebab(group.country)}-${group.year}` : null,
-      year: group?.year ?? null,
+      rallySlug: group?.rallySlug ?? null,
+      year: group?.rallySlug ? group.year : null,
       role: 'Rider',
     });
   }
