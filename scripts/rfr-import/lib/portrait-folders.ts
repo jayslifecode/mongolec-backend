@@ -10,6 +10,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import { nameKeyFromFileStem } from './text';
+import { riderMergeKey } from './rider-merge';
 
 const IMAGE_EXT = /\.(jpe?g|png|webp|heic)$/i;
 
@@ -40,9 +41,26 @@ export interface PortraitSighting {
   country: string | null;
 }
 
-/** Walks every `<Year>_<Country>[...]` folder (and `New Folder`) under `baseDir`. */
-export function scanPortraitFolders(baseDir: string): PortraitSighting[] {
+/** Camera-generated filenames ("FRF01826", "IMG_1234", "DSC0001") name no person. */
+const CAMERA_STEM = /^[A-Z]{2,4}_?\d{3,}$/i;
+
+/** False for unnamed camera files, which must never become a rider. */
+export function isPersonFileStem(stem: string): boolean {
+  return !CAMERA_STEM.test(stem.trim());
+}
+
+export interface ScanOptions {
+  /** `riderMergeKey`s of people who must not be read as riders (rangers). */
+  excludeKeys?: ReadonlySet<string>;
+}
+
+/**
+ * Walks every `<Year>_<Country>[...]` folder (and `New Folder`) under `baseDir`, skipping
+ * camera-named files and anyone whose merge key is in `excludeKeys`.
+ */
+export function scanPortraitFolders(baseDir: string, opts: ScanOptions = {}): PortraitSighting[] {
   if (!fs.existsSync(baseDir)) return [];
+  const excludeKeys = opts.excludeKeys ?? new Set<string>();
   const sightings: PortraitSighting[] = [];
 
   for (const folder of fs.readdirSync(baseDir)) {
@@ -52,8 +70,11 @@ export function scanPortraitFolders(baseDir: string): PortraitSighting[] {
 
     for (const file of fs.readdirSync(folderPath)) {
       if (!IMAGE_EXT.test(file)) continue;
+      if (!isPersonFileStem(file.replace(IMAGE_EXT, ''))) continue;
+      const name = nameFromFilename(file);
+      if (excludeKeys.has(riderMergeKey(name))) continue;
       sightings.push({
-        name: nameFromFilename(file),
+        name,
         folder,
         rallySlug: parsed?.rallySlug ?? null,
         year: parsed?.year ?? null,

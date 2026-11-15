@@ -37,15 +37,22 @@ import { buildBucketIndex, matchPortrait } from './lib/photo-match';
 import { readManifest, writeManifest } from './lib/manifest';
 import { reuploadWordpressPhoto } from './lib/reupload-wordpress';
 import { isWordpressUrl, kebab } from './lib/text';
-import { mergeRiderSightings, type MergedRider, type RiderSighting } from './lib/rider-merge';
-import { scanPortraitFolders } from './lib/portrait-folders';
+import {
+  mergeRiderSightings,
+  riderMergeKey,
+  type MergedRider,
+  type RiderSighting,
+} from './lib/rider-merge';
+import { nameFromFilename, scanPortraitFolders } from './lib/portrait-folders';
 import { parseGroupHeader, type GroupHeader } from './lib/sheet-groups';
 
 const TENANT_SLUG = 'rally-for-rangers';
 const DATA_FILE = path.join(__dirname, 'data', 'website-data-2026-09.json');
+const DRIVE_EXPORT_DIR = path.join(os.homedir(), 'Downloads', 'Website');
 const PORTRAITS_DIR =
-  process.env.RFR_PORTRAITS_DIR ||
-  path.join(os.homedir(), 'Downloads', 'Website 2', 'Rider_Portraits');
+  process.env.RFR_PORTRAITS_DIR || path.join(DRIVE_EXPORT_DIR, 'Rider_Portraits');
+const RANGER_PORTRAITS_DIR =
+  process.env.RFR_RANGER_PORTRAITS_DIR || path.join(DRIVE_EXPORT_DIR, 'Ranger_Portraits');
 const FALLBACK_PARK_NAME = 'Protected area ranger';
 const DEFAULT_COUNTRY = 'Mongolia';
 
@@ -135,10 +142,28 @@ function loadRows(): Row[] {
   return sheets['Riders by Rally'];
 }
 
+/**
+ * Merge keys of people who are rangers: sheet rows typed "Ranger" plus every file in the
+ * Ranger_Portraits folder. Anyone the sheet lists as a rider is never excluded (a rider's
+ * portrait occasionally sits in the ranger folder, e.g. Jake Szympruch).
+ */
+function rangerExcludeKeys(rows: Row[]): Set<string> {
+  const riderKeys = new Set(
+    rows.filter(r => r.Name && /rider/i.test(r.Type || '')).map(r => riderMergeKey(r.Name))
+  );
+  const rangerNames = rows.filter(r => r.Name && /ranger/i.test(r.Type || '')).map(r => r.Name);
+  const rangerFiles = fs.existsSync(RANGER_PORTRAITS_DIR)
+    ? fs.readdirSync(RANGER_PORTRAITS_DIR).map(nameFromFilename)
+    : [];
+  return new Set(
+    [...rangerNames, ...rangerFiles].map(riderMergeKey).filter(k => k && !riderKeys.has(k))
+  );
+}
+
 /** Portrait folders -> RiderSighting[] (no bio; adds/confirms rally links, no photo URL — the
  * manifest, not the folder file, is the source of the actual portrait). */
-function portraitSightings(): RiderSighting[] {
-  return scanPortraitFolders(PORTRAITS_DIR).map(p => ({
+function portraitSightings(excludeKeys: Set<string>): RiderSighting[] {
+  return scanPortraitFolders(PORTRAITS_DIR, { excludeKeys }).map(p => ({
     rawName: p.name,
     country: p.country ?? undefined,
     rallySlug: p.rallySlug,
@@ -217,8 +242,9 @@ async function main() {
   const printOnly = args.has('--print');
   const commit = args.has('--commit');
 
-  const { riderSightings, rangers } = accumulate(loadRows());
-  const allSightings = [...riderSightings, ...portraitSightings()];
+  const rows = loadRows();
+  const { riderSightings, rangers } = accumulate(rows);
+  const allSightings = [...riderSightings, ...portraitSightings(rangerExcludeKeys(rows))];
   const mergedRiders = mergeRiderSightings(allSightings, DEFAULT_COUNTRY);
   const riders = assignIdsAndSlugs(mergedRiders);
 
