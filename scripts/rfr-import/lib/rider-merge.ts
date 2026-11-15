@@ -8,17 +8,31 @@
  * into one record (longest bio wins; its casing becomes the display name).
  */
 
-/** Strip a trailing " - YYYY" (and anything after it) and collapse whitespace. */
+/** "(Kathleen)" style nickname groups. */
+const PARENTHETICAL = /\([^)]*\)/g;
+/** A trailing year (with or without a leading dash) and anything after it: "Name - 2022 Bhutan", "Name 2024". */
+const TRAILING_YEAR = /\s*(?:-\s*)?\b(?:19|20)\d{2}\b.*$/;
+
+/** Drop nickname parentheticals and a trailing year suffix, then collapse whitespace. */
 export function normaliseRiderName(raw: string): string {
   return raw
-    .replace(/\s*-\s*\d{4}\b.*$/, '')
+    .replace(PARENTHETICAL, ' ')
+    .replace(TRAILING_YEAR, '')
     .replace(/\s+/g, ' ')
     .trim();
 }
 
-/** Case-folded key used to merge sightings of the same person across sources. */
+/**
+ * Key used to merge sightings of the same person across sources: accents, case, punctuation
+ * and spacing are all folded away, so "André", "T.J." and "D'Avanzo" match "Andre", "TJ"
+ * and "D Avanzo".
+ */
 export function riderMergeKey(raw: string): string {
-  return normaliseRiderName(raw).toLowerCase();
+  return normaliseRiderName(raw)
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]/g, '');
 }
 
 export interface RiderSighting {
@@ -53,7 +67,7 @@ export function mergeRiderSightings(
   for (const sighting of sightings) {
     const displayName = normaliseRiderName(sighting.rawName);
     if (!displayName) continue;
-    const key = displayName.toLowerCase();
+    const key = riderMergeKey(displayName);
     const bio = (sighting.bio ?? '').trim();
 
     let merged = byKey.get(key);
