@@ -30,6 +30,18 @@ describe('mergeSheetRiders', () => {
     ]);
   });
 
+  it('prefers the existing row that has a bio/photo when duplicates share a merge key', () => {
+    const [rider] = mergeSheetRiders(
+      [{ firstName: 'Graham', lastName: 'Cashwell', rallySlugs: [] }],
+      [
+        { firstName: 'Graham', lastName: 'Cashwell', bio: 'Graham bio', photo: 'https://cdn/g.webp', country: 'USA' },
+        { firstName: 'Graham', lastName: 'Cashwell 2024', bio: null, photo: null, country: 'Mongolia' },
+      ],
+      'Mongolia'
+    );
+    expect(rider).toMatchObject({ bio: 'Graham bio', photo: 'https://cdn/g.webp', country: 'USA' });
+  });
+
   it('throws when the sheet lists the same person twice', () => {
     expect(() =>
       mergeSheetRiders(

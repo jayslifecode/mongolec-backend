@@ -48,7 +48,6 @@ import { isWordpressUrl, kebab } from './lib/text';
 import {
   mergeRiderSightings,
   riderMergeKey,
-  splitRiderName,
   type MergedRider,
   type RiderSighting,
 } from './lib/rider-merge';
@@ -56,6 +55,8 @@ import { nameFromFilename, scanPortraitFolders } from './lib/portrait-folders';
 import { parseGroupHeader, type GroupHeader } from './lib/sheet-groups';
 import { fromSheetRows, mergeSheetRiders } from './lib/rider-sheet';
 import { readRiderSheet } from './lib/rider-sheet-file';
+import { applyRiderWrite, planRiderWrite, type ResolvedRider } from './lib/write-riders';
+import { wordpressPhoto } from './lib/wordpress-photo';
 
 const TENANT_SLUG = 'rally-for-rangers';
 const DATA_FILE = path.join(__dirname, 'data', 'website-data-2026-09.json');
@@ -86,7 +87,6 @@ type RangerAcc = {
   displayOrder: number;
 };
 
-type ResolvedRider = MergedRider & { id: string; slug: string; photo: string | null };
 
 function cleanPhoto(url: string): string | null {
   const u = (url || '').trim();
@@ -183,30 +183,35 @@ function portraitSightings(excludeKeys: Set<string>): RiderSighting[] {
   }));
 }
 
-/** Resolves the best photo URL: manifest portrait match first, then a WordPress re-upload. */
+interface PhotoContext {
+  manifest: ReturnType<typeof readManifest>;
+  /** False on a dry run: never upload to production storage, just report it. */
+  allowReupload: boolean;
+  unmatched: string[];
+  pendingUploads: string[];
+}
+
+/** Resolves the best photo URL: manifest portrait match first, then the WordPress photo's B2 copy. */
 async function resolvePhoto(
   name: string,
   spreadsheetPhoto: string | null,
   bucket: 'riders' | 'rangers',
   index: Map<string, string>,
-  manifest: ReturnType<typeof readManifest>,
-  unmatched: string[]
+  ctx: PhotoContext
 ): Promise<string | null> {
   const manifestMatch = matchPortrait(name, index);
   if (manifestMatch) return manifestMatch;
 
   if (spreadsheetPhoto && isWordpressUrl(spreadsheetPhoto)) {
-    const reuploaded = await reuploadWordpressPhoto(
-      spreadsheetPhoto,
-      bucket,
-      kebab(name),
-      manifest
-    );
-    if (reuploaded) return reuploaded;
-    unmatched.push(name); // dead WordPress link: never persist it
-    return null;
+    const { url, pending } = await wordpressPhoto(spreadsheetPhoto, bucket, kebab(name), ctx.manifest, {
+      allowReupload: ctx.allowReupload,
+      reupload: reuploadWordpressPhoto,
+    });
+    if (pending) ctx.pendingUploads.push(name);
+    else if (!url) ctx.unmatched.push(name); // dead WordPress link: never persist it
+    return url;
   }
-  if (!spreadsheetPhoto) unmatched.push(name);
+  if (!spreadsheetPhoto) ctx.unmatched.push(name);
   return spreadsheetPhoto;
 }
 
@@ -248,12 +253,6 @@ function printSummary(riders: ResolvedRider[]) {
     .forEach(r => console.log(`   ${r.displayName.padEnd(28)} ${r.rallies.size} rallies`));
 }
 
-/** First/last name for the DB row: explicit (master sheet) or derived from the display name. */
-function nameParts(r: ResolvedRider): { firstName: string; lastName: string } {
-  if (r.firstName !== undefined) return { firstName: r.firstName, lastName: r.lastName ?? '' };
-  return splitRiderName(r.displayName);
-}
-
 async function loadTenantContext(
   prisma: PrismaClient
 ): Promise<{ tenantId: string; rallyIdBySlug: Map<string, string> }> {
@@ -267,24 +266,29 @@ async function loadTenantContext(
   return { tenantId: tenant.id, rallyIdBySlug: new Map(rallyRows.map(r => [r.slug, r.id])) };
 }
 
+/** Generous: ~500 sequential statements over an SSH tunnel to production. */
+const RIDER_TX_TIMEOUT_MS = 10 * 60 * 1000;
+
 /**
- * Print the plan (stale riders to delete, upserts, links) and, with `commit`, apply it:
- * delete stale `rfr-rider-*` participants, upsert every rider, replace each rider's links.
- * Returns true when it wrote.
+ * Print the plan (riders to delete and what each merges into, slug collisions, upserts,
+ * links) and, with `commit`, apply it in ONE transaction: nothing is half-applied if a write
+ * or the connection fails. `managedRallySlugs` (master-sheet mode) limits which links are
+ * replaced. Returns true when it wrote.
  */
 async function writeRiders(
   prisma: PrismaClient,
   tenantId: string,
   rallyIdBySlug: Map<string, string>,
   riders: ResolvedRider[],
-  commit: boolean
+  commit: boolean,
+  managedRallySlugs?: Set<string>
 ): Promise<boolean> {
+  // Every tenant row, soft-deleted ones included: they still hold their slug.
   const existing = await prisma.participant.findMany({
-    where: { tenantId, id: { startsWith: 'rfr-rider-' } },
-    select: { id: true, firstName: true, lastName: true },
+    where: { tenantId },
+    select: { id: true, slug: true, firstName: true, lastName: true },
   });
-  const producedIds = new Set(riders.map(r => r.id));
-  const toDelete = existing.filter(p => !producedIds.has(p.id));
+  const plan = planRiderWrite(existing, riders);
   const linkable = riders.reduce(
     (n, r) => n + Array.from(r.rallies.keys()).filter(s => rallyIdBySlug.has(s)).length,
     0
@@ -294,52 +298,36 @@ async function writeRiders(
   );
 
   console.log(`📋 Plan — upsert ${riders.length} riders (${linkable} rally links)`);
+  if (managedRallySlugs) {
+    console.log(`   Links replaced only for the sheet's ${managedRallySlugs.size} rallies; other links are kept.`);
+  }
   if (unknownSlugs.length) {
     console.log(`⚠️  Rally slugs with no rally row (links skipped): ${unknownSlugs.join(', ')}`);
   }
-  if (toDelete.length) {
-    console.log(`🗑️  Will delete ${toDelete.length} stale rfr-rider-* participants:`);
-    toDelete.forEach(p => console.log(`   - ${p.id} (${p.firstName} ${p.lastName})`));
+  if (plan.toDelete.length) {
+    const merged = plan.toDelete.filter(p => p.mergedInto);
+    const removed = plan.toDelete.filter(p => !p.mergedInto);
+    console.log(`🗑️  Will delete ${plan.toDelete.length} rfr-rider-* participants:`);
+    console.log(`   ${merged.length} duplicates merged into another rider:`);
+    merged.forEach(p => console.log(`   - ${p.id} (${p.name}) → ${p.mergedInto}`));
+    console.log(`   ${removed.length} no longer in the sources (rangers, camera files, removed rows):`);
+    removed.forEach(p => console.log(`   - ${p.id} (${p.name})`));
+  }
+  if (plan.collisions.length) {
+    console.log(`⛔ ${plan.collisions.length} non-importer participants hold a slug this import needs:`);
+    plan.collisions.forEach(c => console.log(`   - ${c.slug} (${c.id}, ${c.name})`));
   }
   if (!commit) {
     console.log('\n🚫 Dry run — nothing written. Re-run with --commit to apply.');
     return false;
   }
 
-  if (toDelete.length) {
-    const ids = toDelete.map(p => p.id);
-    await prisma.participantRally.deleteMany({ where: { participantId: { in: ids } } });
-    await prisma.participant.deleteMany({ where: { id: { in: ids } } });
-  }
-
-  let linksDone = 0;
-  for (const [index, r] of riders.entries()) {
-    const fields = {
-      ...nameParts(r),
-      slug: r.slug,
-      country: r.country,
-      bio: r.bio || null,
-      photo: r.photo,
-      isActive: true,
-    };
-    await prisma.participant.upsert({
-      where: { id: r.id },
-      update: fields,
-      create: { ...fields, id: r.id, displayOrder: index, tenantId },
-    });
-    // Replace this rider's links to match the freshly computed set exactly.
-    await prisma.participantRally.deleteMany({ where: { participantId: r.id } });
-    for (const [slug, { year, role }] of r.rallies.entries()) {
-      const rallyId = rallyIdBySlug.get(slug);
-      if (!rallyId) continue;
-      await prisma.participantRally.create({
-        data: { participantId: r.id, rallyId, year, role: role ?? 'Rider' },
-      });
-      linksDone++;
-    }
-  }
+  const result = await prisma.$transaction(
+    tx => applyRiderWrite(tx, { tenantId, rallyIdBySlug, riders, plan, managedRallySlugs }),
+    { timeout: RIDER_TX_TIMEOUT_MS, maxWait: 30_000 }
+  );
   console.log(
-    `\n🎉 Riders: ${riders.length} (${linksDone} rally links). Deleted stale: ${toDelete.length}.`
+    `\n🎉 Riders: ${result.ridersWritten} (${result.linksWritten} rally links). Deleted: ${result.deleted}.`
   );
   return true;
 }
@@ -398,17 +386,24 @@ async function runFromSheet(sheetPath: string, commit: boolean) {
   try {
     const { tenantId, rallyIdBySlug } = await loadTenantContext(prisma);
     const existing = await prisma.participant.findMany({
-      where: { tenantId },
+      where: { tenantId, deletedAt: null },
       select: { firstName: true, lastName: true, bio: true, photo: true, country: true },
     });
+    const existingKeys = new Set(existing.map(e => riderMergeKey(`${e.firstName} ${e.lastName}`)));
     const riderIndex = buildBucketIndex(readManifest(), 'riders');
     const riders = assignIdsAndSlugs(mergeSheetRiders(sheetRiders, existing, DEFAULT_COUNTRY)).map(
       r => ({ ...r, photo: r.photo ?? matchPortrait(r.displayName, riderIndex) ?? null })
     );
 
     console.log(`\n📄 ${sheetPath}: ${riders.length} riders`);
+    const newNames = riders.filter(r => !existingKeys.has(r.key)).map(r => r.displayName);
+    if (newNames.length) {
+      console.log(`🆕 ${newNames.length} names not on the site yet (new rider, or a renamed one losing its bio):`);
+      newNames.forEach(n => console.log(`   - ${n}`));
+    }
     printSummary(riders);
-    if (await writeRiders(prisma, tenantId, rallyIdBySlug, riders, commit)) {
+    const managedRallySlugs = new Set(rallyKey.values());
+    if (await writeRiders(prisma, tenantId, rallyIdBySlug, riders, commit, managedRallySlugs)) {
       await printFinalCounts(prisma, tenantId, rallyIdBySlug);
     }
   } finally {
@@ -442,18 +437,22 @@ async function runFromSources(printOnly: boolean, commit: boolean) {
   const manifest = readManifest();
   const riderIndex = buildBucketIndex(manifest, 'riders');
   const rangerIndex = buildBucketIndex(manifest, 'rangers');
-  const unmatched: string[] = [];
+  const photos: PhotoContext = { manifest, allowReupload: commit, unmatched: [], pendingUploads: [] };
   const resolvedRiders = await mapWithConcurrency(riders, 4, async r => ({
     ...r,
-    photo: await resolvePhoto(r.displayName, r.photo, 'riders', riderIndex, manifest, unmatched),
+    photo: await resolvePhoto(r.displayName, r.photo, 'riders', riderIndex, photos),
   }));
   const resolvedRangers = await mapWithConcurrency(rangers, 4, async r => ({
     ...r,
-    photo: await resolvePhoto(r.name, r.photo, 'rangers', rangerIndex, manifest, unmatched),
+    photo: await resolvePhoto(r.name, r.photo, 'rangers', rangerIndex, photos),
   }));
-  if (unmatched.length) {
-    console.log(`\n⚠️  ${unmatched.length} people with no portrait match and no spreadsheet photo:`);
-    unmatched.forEach(n => console.log(`   - ${n}`));
+  if (photos.unmatched.length) {
+    console.log(`\n⚠️  ${photos.unmatched.length} people with no portrait match and no spreadsheet photo:`);
+    photos.unmatched.forEach(n => console.log(`   - ${n}`));
+  }
+  if (photos.pendingUploads.length) {
+    console.log(`\n📤 ${photos.pendingUploads.length} WordPress photos would be copied to B2 on --commit:`);
+    photos.pendingUploads.forEach(n => console.log(`   - ${n}`));
   }
   console.log(
     `\n👥 ${riders.length} unique riders (merged ${duplicatesMerged} duplicate sightings), ${rangers.length} rangers`

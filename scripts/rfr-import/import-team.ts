@@ -24,6 +24,7 @@ import { readManifest, writeManifest } from './lib/manifest';
 import { reuploadWordpressPhoto } from './lib/reupload-wordpress';
 import { isWordpressUrl, kebab, normaliseName } from './lib/text';
 import { loadRoster } from './lib/team-roster';
+import { wordpressPhoto } from './lib/wordpress-photo';
 
 const TENANT_SLUG = 'rally-for-rangers';
 const ROSTER_FILE = path.join(__dirname, 'data', 'team-roster.json');
@@ -65,7 +66,8 @@ function cleanSheetName(name: string): string {
   return name.replace(/,\s*(Co-Founder|Executive Director|Manager|Chef|Driver).*$/i, '').trim();
 }
 
-async function loadBoardMembers(core: TeamRow[], manifest: Manifest): Promise<TeamRow[]> {
+/** `allowReupload` is false on a dry run: never copy WordPress photos to B2 before --commit. */
+async function loadBoardMembers(core: TeamRow[], manifest: Manifest, allowReupload: boolean): Promise<TeamRow[]> {
   const sheets = JSON.parse(fs.readFileSync(SHEET_FILE, 'utf-8'));
   const rows: SheetRow[] = sheets['Staff Members'];
   const coreNames = new Set(core.map(m => normaliseName(m.name)));
@@ -80,8 +82,12 @@ async function loadBoardMembers(core: TeamRow[], manifest: Manifest): Promise<Te
     const spreadsheetPhoto = (row['Photo URL'] || '').trim() || null;
     let photo = spreadsheetPhoto;
     if (spreadsheetPhoto && isWordpressUrl(spreadsheetPhoto)) {
-      const reuploaded = await reuploadWordpressPhoto(spreadsheetPhoto, 'team', kebab(row.Name), manifest);
-      if (reuploaded) photo = reuploaded;
+      const copy = await wordpressPhoto(spreadsheetPhoto, 'team', kebab(row.Name), manifest, {
+        allowReupload,
+        reupload: reuploadWordpressPhoto,
+      });
+      if (copy.pending) console.log(`📤 Would copy ${row.Name}'s WordPress photo to B2 on --commit`);
+      if (copy.url) photo = copy.url;
     }
     members.push({
       name: row.Name,
@@ -119,7 +125,7 @@ async function main() {
 
   const manifest = readManifest();
   const core = loadCoreMembers(manifest);
-  const board = await loadBoardMembers(core, manifest);
+  const board = await loadBoardMembers(core, manifest, commit);
   const publicNames = new Set(core.map(m => m.name));
 
   console.log(`📋 Plan — ${core.length} active roster members, ${board.length} inactive board/advisor rows`);

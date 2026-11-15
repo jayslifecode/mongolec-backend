@@ -22,6 +22,21 @@ const yearOfSlug = (slug: string): number | null => {
   return m ? parseInt(m[1], 10) : null;
 };
 
+const richness = (e: ExistingRider): number => (e.bio?.trim() ? 2 : 0) + (e.photo ? 1 : 0);
+
+/**
+ * Existing rows by merge key. Duplicates (e.g. "Graham Cashwell" and "Graham Cashwell 2024"
+ * before the dedupe import has run) resolve to the row carrying the most data (bio, then photo).
+ */
+function indexExistingByKey(existing: ExistingRider[]): Map<string, ExistingRider> {
+  return existing.reduce((byKey, row) => {
+    const key = riderMergeKey(`${row.firstName} ${row.lastName}`);
+    const current = byKey.get(key);
+    if (!current || richness(row) > richness(current)) byKey.set(key, row);
+    return byKey;
+  }, new Map<string, ExistingRider>());
+}
+
 /**
  * Sheet riders -> MergedRider[]: the sheet decides who exists and which rallies they rode;
  * bio, photo and country are carried over from the existing DB row with the same merge key.
@@ -31,7 +46,7 @@ export function mergeSheetRiders(
   existing: ExistingRider[],
   defaultCountry: string
 ): MergedRider[] {
-  const existingByKey = new Map(existing.map(e => [riderMergeKey(`${e.firstName} ${e.lastName}`), e]));
+  const existingByKey = indexExistingByKey(existing);
   const seen = new Map<string, string>();
   return sheetRiders.map(rider => {
     const displayName = `${rider.firstName} ${rider.lastName}`.trim();
