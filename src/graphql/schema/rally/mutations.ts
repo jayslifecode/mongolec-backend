@@ -51,6 +51,8 @@ export const rallyMutations = gql`
     metaTitle: JSON
     metaDescription: JSON
     featuredImage: String
+    photoCredit: String
+    acceptanceTerms: JSON
   }
 
   input RallyUpdateInput {
@@ -80,6 +82,8 @@ export const rallyMutations = gql`
     metaTitle: JSON
     metaDescription: JSON
     featuredImage: String
+    photoCredit: String
+    acceptanceTerms: JSON
   }
 
   # ============================================

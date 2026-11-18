@@ -19,6 +19,7 @@ export const PARTICIPANT_RALLY_INCLUDE = {
           heroImage: true,
           status: true,
           location: true,
+          isPlaceholder: true,
           stories: { select: { slug: true, status: true } },
         },
       },

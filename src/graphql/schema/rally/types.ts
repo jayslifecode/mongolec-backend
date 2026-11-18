@@ -47,6 +47,9 @@ export const rallyTypeDefs = gql`
     metaTitle: JSON
     metaDescription: JSON
     featuredImage: String
+    # Round 4: gallery credit ("Photos by: ...") and acceptance-letter amounts
+    photoCredit: String
+    acceptanceTerms: JSON
 
     # Relations
     tenant: Tenant!

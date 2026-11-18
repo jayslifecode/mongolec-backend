@@ -90,14 +90,31 @@ function withRally(rallies: RallyLinks, sighting: RiderSighting): RallyLinks {
   });
 }
 
-/** Fold one more sighting into a rider: longest bio wins (with its name casing); first photo kept. */
-function foldSighting(merged: MergedRider, sighting: RiderSighting, displayName: string, bio: string): MergedRider {
+/** Undated portraits rank below any dated one. */
+const UNDATED_PHOTO = Number.NEGATIVE_INFINITY;
+
+function photoYearOf(sighting: RiderSighting): number {
+  return sighting.year ?? UNDATED_PHOTO;
+}
+
+/**
+ * Fold one more sighting into a rider: longest bio wins (with its name casing). The featured
+ * photo is the portrait from the rider's latest rally (client rule, round 4): a sighting's photo
+ * replaces the current one only when it is from a strictly later year (`takePhoto`).
+ */
+function foldSighting(
+  merged: MergedRider,
+  sighting: RiderSighting,
+  displayName: string,
+  bio: string,
+  takePhoto: boolean
+): MergedRider {
   const longerBio = bio.length > merged.bio.length;
   return {
     ...merged,
     bio: longerBio ? bio : merged.bio,
     displayName: longerBio ? displayName : merged.displayName,
-    photo: merged.photo ?? sighting.photo ?? null,
+    photo: takePhoto ? (sighting.photo ?? null) : merged.photo,
     rallies: withRally(merged.rallies, sighting),
   };
 }
@@ -107,6 +124,8 @@ export function mergeRiderSightings(
   defaultCountry: string
 ): MergedRider[] {
   const byKey = new Map<string, MergedRider>();
+  /** Year of the portrait currently featured per rider (internal; not part of the output). */
+  const photoYearByKey = new Map<string, number>();
 
   for (const sighting of sightings) {
     const displayName = normaliseRiderName(sighting.rawName);
@@ -114,8 +133,13 @@ export function mergeRiderSightings(
     const key = riderMergeKey(displayName);
     const bio = (sighting.bio ?? '').trim();
     const current = byKey.get(key);
+    const currentPhotoYear = photoYearByKey.get(key);
+    const takePhoto =
+      Boolean(sighting.photo) &&
+      (currentPhotoYear === undefined || photoYearOf(sighting) > currentPhotoYear);
+    if (takePhoto) photoYearByKey.set(key, photoYearOf(sighting));
     const next = current
-      ? foldSighting(current, sighting, displayName, bio)
+      ? foldSighting(current, sighting, displayName, bio, takePhoto)
       : {
           key,
           displayName,
