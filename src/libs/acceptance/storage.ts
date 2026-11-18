@@ -1,8 +1,11 @@
 import { randomBytes } from 'crypto';
-import { PutObjectCommand } from '@aws-sdk/client-s3';
+import { DeleteObjectCommand, PutObjectCommand } from '@aws-sdk/client-s3';
 import { s3Client } from '@/config/s3';
 import { resolvePublicBaseUrl } from '@/libs/file-storage';
 import type { DecodedAcceptanceFile } from './files';
+import { createLogger } from '@/utils/logger';
+
+const logger = createLogger('ACCEPTANCE_STORAGE');
 
 const RIDER_PHOTO_PREFIX = 'rfr/riders/acceptance';
 
@@ -22,4 +25,16 @@ export async function uploadAcceptancePhoto(file: DecodedAcceptanceFile, slug: s
     })
   );
   return `${resolvePublicBaseUrl()}/${key}`;
+}
+
+/** Best-effort removal of an uploaded photo whose acceptance letter then failed to save. */
+export async function deleteAcceptancePhoto(url: string): Promise<void> {
+  if (!s3Client) return;
+  const base = `${resolvePublicBaseUrl()}/`;
+  if (!url.startsWith(`${base}${RIDER_PHOTO_PREFIX}/`)) return;
+  try {
+    await s3Client.send(new DeleteObjectCommand({ Bucket: process.env.B2_BUCKET_NAME, Key: url.slice(base.length) }));
+  } catch (error) {
+    logger.error('Could not remove orphaned acceptance photo', error instanceof Error ? error : undefined, { url });
+  }
 }

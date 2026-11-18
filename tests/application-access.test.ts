@@ -28,11 +28,14 @@ function context(user: unknown) {
 const ADMIN = { id: 'u1', roles: ['admin'], permissions: ['rally:read', 'rally:update'] };
 
 describe('canManageApplications', () => {
-  it('allows tenant admins, super admins and holders of rally:update or application:manage', () => {
+  it('allows tenant admins, super admins and holders of application:manage', () => {
     expect(canManageApplications({ roles: ['admin'], permissions: [] })).toBe(true);
     expect(canManageApplications({ roles: ['super_admin'], permissions: [] })).toBe(true);
-    expect(canManageApplications({ roles: [], permissions: ['rally:update'] })).toBe(true);
     expect(canManageApplications({ roles: [], permissions: ['application:manage'] })).toBe(true);
+  });
+
+  it('does not treat content-editing rights (rally:update) as access to applicant data', () => {
+    expect(canManageApplications({ roles: ['editor'], permissions: ['rally:update'] })).toBe(false);
   });
 
   it('refuses anonymous visitors and users without those rights', () => {

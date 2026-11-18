@@ -87,7 +87,7 @@ describe('decodeAcceptanceFile', () => {
   it('refuses files over the size limit and empty files', () => {
     const big = Buffer.concat([JPEG, Buffer.alloc(ACCEPTANCE_PHOTO_POLICY.maxBytes)]).toString('base64');
     expect(() => decodeAcceptanceFile({ fileName: 'big.jpg', mimeType: 'image/jpeg', base64: big }, ACCEPTANCE_PHOTO_POLICY)).toThrow(
-      'Photo is too large (max 5 MB)'
+      'Photo is too large (max 4 MB)'
     );
     expect(() => decodeAcceptanceFile({ fileName: 'e.jpg', mimeType: 'image/jpeg', base64: '' }, ACCEPTANCE_PHOTO_POLICY)).toThrow(
       'Photo is empty'
@@ -149,6 +149,15 @@ describe('validateAcceptanceInput', () => {
       'Please choose a rooming preference.',
       'Questions must be 5000 characters or fewer.',
     ]);
+  });
+});
+
+describe('upload caps keep a full submission under the 10 MB request limit', () => {
+  it('photo 4 MB + passport 3 MB stay under 10 MB once base64-encoded', () => {
+    const base64Bytes = (bytes: number) => Math.ceil(bytes / 3) * 4;
+    expect(ACCEPTANCE_PHOTO_POLICY.maxBytes).toBe(4 * 1024 * 1024);
+    expect(ACCEPTANCE_PASSPORT_POLICY.maxBytes).toBe(3 * 1024 * 1024);
+    expect(base64Bytes(ACCEPTANCE_PHOTO_POLICY.maxBytes) + base64Bytes(ACCEPTANCE_PASSPORT_POLICY.maxBytes)).toBeLessThan(10 * 1024 * 1024);
   });
 });
 

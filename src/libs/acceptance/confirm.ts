@@ -7,6 +7,7 @@ import { planRiderSync, riderSlug } from './rider-sync';
  */
 
 interface ConfirmableApplication {
+  id: string;
   tenantId: string;
   rallyId: string;
   firstName: string;
@@ -32,17 +33,29 @@ function rallyYear(startDate: Date | string | null): number | null {
 
 export async function syncConfirmedRider(tx: any, application: ConfirmableApplication): Promise<string> {
   const { acceptance } = application;
-  const firstName = acceptance.firstName || application.firstName;
-  const lastName = acceptance.lastName || application.lastName;
-  const slug = riderSlug(firstName, lastName);
+  // The application's names (what admin reviewed and approved) pick the rider, never the names
+  // typed in the letter, so a letter cannot redirect the update onto someone else's profile.
+  const firstName = application.firstName;
+  const lastName = application.lastName;
+  const nameSlug = riderSlug(firstName, lastName);
 
+  // Names with no Latin letters have no name slug: never match on it, give the new rider its own.
   // Soft-deleted riders are matched too: the slug is unique per tenant, and a returning rider revives.
-  const existing = await tx.participant.findFirst({
-    where: { tenantId: application.tenantId, slug },
-    select: { id: true, photo: true, bio: true },
-  });
+  const existing = nameSlug
+    ? await tx.participant.findFirst({
+        where: { tenantId: application.tenantId, slug: nameSlug },
+        select: { id: true, photo: true, bio: true },
+      })
+    : null;
 
-  const plan = planRiderSync({ firstName, lastName, country: application.country, acceptance, existing });
+  const plan = planRiderSync({
+    firstName,
+    lastName,
+    slug: nameSlug || `rider-${application.id}`,
+    country: application.country,
+    acceptance,
+    existing,
+  });
 
   const participantId =
     plan.kind === 'create'

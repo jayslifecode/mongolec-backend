@@ -4,6 +4,7 @@ jest.mock('../src/libs/email', () => ({
 }));
 jest.mock('../src/libs/acceptance/storage', () => ({
   uploadAcceptancePhoto: jest.fn(),
+  deleteAcceptancePhoto: jest.fn(),
 }));
 jest.mock('../src/middleware/submission-throttle', () => ({
   assertSubmissionAllowed: jest.fn(),
@@ -17,7 +18,7 @@ import {
 } from '../src/graphql/resolvers/acceptance';
 import { applicationMutations } from '../src/graphql/resolvers/mutations/application';
 import { sendEmail, getAdminNotifyEmail } from '../src/libs/email';
-import { uploadAcceptancePhoto } from '../src/libs/acceptance/storage';
+import { deleteAcceptancePhoto, uploadAcceptancePhoto } from '../src/libs/acceptance/storage';
 
 const TOKEN = 'A'.repeat(32);
 const JPEG_B64 = Buffer.from([0xff, 0xd8, 0xff, 0xe0, 1, 2, 3]).toString('base64');
@@ -292,5 +293,59 @@ describe('admin-only acceptance access', () => {
     expect(select.passportData).toBeUndefined();
     expect(select.passportFileName).toBe(true);
     expect(RallyAcceptanceFields.hasPassport({ passportFileName: 'p.pdf' })).toBe(true);
+  });
+});
+
+describe('security review follow-ups', () => {
+  const acceptance = { id: 'acc-1', usePastPhotoAndBio: false, photoUrl: 'https://cdn/new.jpg', bio: 'New bio', firstName: 'Jane', lastName: 'Doe' };
+
+  it('confirm matches the rider by the application names admin reviewed, never the names typed in the letter', async () => {
+    const typedOtherName = { ...acceptance, firstName: 'Famous', lastName: 'Rider' };
+    const ctx = buildContext({ app: application({ acceptance: typedOtherName }), user: ADMIN });
+    await applicationMutations.confirmApplication(null, { id: 'app-1' }, ctx);
+    const [{ where }] = ctx.prisma.participant.findFirst.mock.calls[0];
+    expect(where.slug).toBe('jane-doe');
+    expect(ctx.prisma.participant.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({ firstName: 'Jane', lastName: 'Doe', slug: 'jane-doe' }),
+    });
+  });
+
+  it('a name with no Latin letters never matches an existing rider and gets its own slug', async () => {
+    const app = application({ firstName: 'Батбаяр', lastName: 'Дорж', acceptance: { ...acceptance, firstName: 'Батбаяр', lastName: 'Дорж' } });
+    const ctx = buildContext({ app, participant: { id: 'someone-else', photo: 'x', bio: 'y' }, user: ADMIN });
+    await applicationMutations.confirmApplication(null, { id: 'app-1' }, ctx);
+    expect(ctx.prisma.participant.findFirst).not.toHaveBeenCalled();
+    expect(ctx.prisma.participant.update).not.toHaveBeenCalled();
+    expect(ctx.prisma.participant.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({ slug: 'rider-app-1', firstName: 'Батбаяр', lastName: 'Дорж' }),
+    });
+  });
+
+  it('the invite never looks up a past profile for an empty slug', async () => {
+    const ctx = buildContext({ app: application({ firstName: 'Батбаяр', lastName: 'Дорж' }), participant: { id: 'x', photo: 'p', bio: 'b' } });
+    const invite = await acceptanceQueries.getAcceptanceInvite(null, { token: TOKEN }, ctx);
+    expect(invite).toMatchObject({ hasPastProfile: false, pastPhoto: null });
+    expect(ctx.prisma.participant.findFirst).not.toHaveBeenCalled();
+  });
+
+  it('once the letter is in, the invite stops returning the email and past photo', async () => {
+    const ctx = buildContext({ app: application({ acceptance: { id: 'acc-1' } }), participant: { id: 'p1', photo: 'https://cdn/old.jpg', bio: 'b' } });
+    const invite = await acceptanceQueries.getAcceptanceInvite(null, { token: TOKEN }, ctx);
+    expect(invite).toMatchObject({ alreadySubmitted: true, email: '', pastPhoto: null, hasPastProfile: false });
+  });
+
+  it('public acceptance calls refuse to run without a tenant', async () => {
+    const ctx = buildContext();
+    ctx.tenant = undefined;
+    expect(await acceptanceQueries.getAcceptanceInvite(null, { token: TOKEN }, ctx)).toBeNull();
+    await expect(acceptanceMutations.submitAcceptance(null, { input: submission() }, ctx)).rejects.toThrow('This acceptance link is not valid');
+    expect(ctx.prisma.rallyApplication.findFirst).not.toHaveBeenCalled();
+  });
+
+  it('removes the uploaded photo again when saving the letter fails', async () => {
+    const ctx = buildContext();
+    ctx.prisma.rallyAcceptance.create.mockRejectedValue(Object.assign(new Error('dup'), { code: 'P2002' }));
+    await expect(acceptanceMutations.submitAcceptance(null, { input: submission() }, ctx)).rejects.toThrow('We already have your acceptance letter');
+    expect(deleteAcceptancePhoto).toHaveBeenCalledWith('https://cdn.example.com/rfr/riders/acceptance/jane-doe-1.jpg');
   });
 });

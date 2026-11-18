@@ -31,14 +31,15 @@ export const ACCEPTANCE_PHOTO_POLICY: AcceptanceFilePolicy = {
   label: 'Photo',
   allowedMimeTypes: ['image/jpeg', 'image/png', 'image/webp'],
   allowedDescription: 'a JPG, PNG or WebP image',
-  maxBytes: 5 * MB,
+  // Photo 4 MB + passport 3 MB stay under the API's 10 MB request limit once base64-encoded.
+  maxBytes: 4 * MB,
 };
 
 export const ACCEPTANCE_PASSPORT_POLICY: AcceptanceFilePolicy = {
   label: 'Passport copy',
   allowedMimeTypes: ['image/jpeg', 'image/png', 'application/pdf'],
   allowedDescription: 'a JPG, PNG or PDF file',
-  maxBytes: 4 * MB,
+  maxBytes: 3 * MB,
 };
 
 const EXTENSIONS: Record<string, string> = {

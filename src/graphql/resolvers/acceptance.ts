@@ -10,7 +10,7 @@ import {
   type SubmitAcceptanceInput,
 } from '@/libs/acceptance';
 import { getRfrSiteUrl } from '@/libs/acceptance/site';
-import { uploadAcceptancePhoto } from '@/libs/acceptance/storage';
+import { deleteAcceptancePhoto, uploadAcceptancePhoto } from '@/libs/acceptance/storage';
 import { sendEmail, getAdminNotifyEmail } from '@/libs/email';
 import { adminAcceptanceReceivedEmail } from '@/libs/email-templates/acceptance';
 import { assertSubmissionAllowed } from '@/middleware/submission-throttle';
@@ -64,11 +64,18 @@ function findOpenApplication(context: any, token: string) {
   });
 }
 
-function findPastProfile(context: any, application: { firstName: string; lastName: string }) {
+/** The rider profile we already hold for this applicant, matched by the application's names. */
+async function findPastProfile(context: any, application: { firstName: string; lastName: string }) {
+  const slug = riderSlug(application.firstName, application.lastName);
+  if (!slug) return null; // no Latin letters: never match on an empty slug
   return context.prisma.participant.findFirst({
-    where: { tenantId: context.tenant?.id, slug: riderSlug(application.firstName, application.lastName), deletedAt: null },
+    where: { tenantId: context.tenant.id, slug, deletedAt: null },
     select: { id: true, photo: true, bio: true },
   });
+}
+
+function hasTenant(context: any): boolean {
+  return Boolean(context.tenant?.id);
 }
 
 function hasProfile(participant: { photo?: string | null; bio?: string | null } | null): boolean {
@@ -86,21 +93,23 @@ function trimmedOrNull(value: string | null | undefined): string | null {
 
 export const acceptanceQueries = {
   getAcceptanceInvite: async (_: unknown, { token }: { token: string }, context: any) => {
-    if (!isAcceptanceToken(token)) return null;
+    if (!isAcceptanceToken(token) || !hasTenant(context)) return null;
     const application = await findOpenApplication(context, token);
     if (!application) return null;
-    const participant = await findPastProfile(context, application);
+    // Once the letter is in (or the rider is confirmed), the link only says so: no email or photo.
+    const isDone = Boolean(application.acceptance) || application.status !== SUBMITTABLE_STATUS;
+    const participant = isDone ? null : await findPastProfile(context, application);
     return {
       firstName: application.firstName,
       lastName: application.lastName,
-      email: application.email,
+      email: isDone ? '' : application.email,
       rallyTitle: displayText(application.rally.title) || application.rally.slug,
       rallySlug: application.rally.slug,
       rallyStartDate: application.rally.startDate,
       rallyEndDate: application.rally.endDate,
       rallyLocation: displayText(application.rally.location) || null,
       terms: application.rally.acceptanceTerms ?? null,
-      alreadySubmitted: Boolean(application.acceptance),
+      alreadySubmitted: isDone,
       hasPastProfile: hasProfile(participant),
       pastPhoto: participant?.photo ?? null,
     };
@@ -113,6 +122,7 @@ export const acceptanceQueries = {
       select: { passportFileName: true, passportMimeType: true, passportData: true },
     });
     if (!acceptance?.passportData) return null;
+    logger.info('Passport copy downloaded', { userId: context.user?.id, applicationId });
     return {
       fileName: acceptance.passportFileName ?? 'passport',
       mimeType: acceptance.passportMimeType ?? 'application/octet-stream',
@@ -137,7 +147,7 @@ export const acceptanceMutations = {
     if (input.honeypot) return { success: true, message: SUCCESS_MESSAGE };
     await assertSubmissionAllowed('submitAcceptance', clientIp(context), SUBMIT_THROTTLE);
 
-    if (!isAcceptanceToken(input.token)) throw new Error(INVALID_LINK);
+    if (!isAcceptanceToken(input.token) || !hasTenant(context)) throw new Error(INVALID_LINK);
     const application = await findOpenApplication(context, input.token);
     if (!application || application.status !== SUBMITTABLE_STATUS) throw new Error(INVALID_LINK);
     if (application.acceptance) throw new Error(ALREADY_SUBMITTED);
@@ -186,6 +196,7 @@ export const acceptanceMutations = {
         },
       });
     } catch (error) {
+      if (photoUrl) void deleteAcceptancePhoto(photoUrl);
       if (isUniqueViolation(error)) throw new Error(ALREADY_SUBMITTED);
       logger.error('Failed to save acceptance', error instanceof Error ? error : undefined);
       throw new Error('Something went wrong saving your acceptance letter. Please try again.');

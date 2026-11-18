@@ -1,13 +1,13 @@
 import { AuthenticationError, AuthorizationError } from '@/utils/errors';
 
 /**
- * Who may read and act on rally applications (they hold applicants' personal details).
- * Permissions in the auth context are "resource:action" strings; there is no seeded
- * application:* permission, so tenant admins (role or rally:update) qualify, plus
- * application:manage should it be seeded later.
+ * Who may read and act on rally applications (they hold applicants' personal details and
+ * passport copies). Permissions in the auth context are "resource:action" strings. Tenant admins
+ * and super admins qualify, plus application:manage should it be seeded later. Content-editing
+ * rights such as rally:update deliberately do not.
  */
 const MANAGER_ROLES = ['admin', 'super_admin'];
-const MANAGER_PERMISSIONS = ['application:manage', 'rally:update'];
+const MANAGER_PERMISSIONS = ['application:manage'];
 
 interface AccessUser {
   roles?: string[] | null;

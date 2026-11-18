@@ -20,6 +20,8 @@ export interface RiderSyncExisting {
 export interface RiderSyncInput {
   firstName: string;
   lastName: string;
+  /** Slug for a new rider; defaults to the name slug (callers pass a fallback when that is empty). */
+  slug?: string;
   country: string;
   acceptance: RiderSyncAcceptance | null;
   existing: RiderSyncExisting | null;
@@ -71,7 +73,7 @@ export function planRiderSync(input: RiderSyncInput): RiderSyncPlan {
     data: {
       firstName,
       lastName,
-      slug: riderSlug(firstName, lastName),
+      slug: input.slug || riderSlug(firstName, lastName),
       country: input.country,
       photo: newPhoto ?? null,
       bio: newBio ?? null,
