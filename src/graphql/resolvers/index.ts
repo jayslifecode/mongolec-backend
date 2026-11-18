@@ -1,4 +1,5 @@
 import { GraphQLScalarType, Kind } from 'graphql';
+import { canManageApplications } from '@/utils/application-access';
 
 // Import queries
 import { authQueries } from './queries/auth';
@@ -110,6 +111,11 @@ const Rally = {
     context.prisma.participantRally.count({
       where: { rallyId: parent.id, participant: { deletedAt: null } },
     }),
+
+  // Public rally queries eager-load the latest applications; they hold applicants' personal
+  // details, so only application managers ever see them.
+  applications: (parent: any, _args: any, context: any) =>
+    canManageApplications(context.user) ? (parent.applications ?? []) : [],
 };
 
 /**

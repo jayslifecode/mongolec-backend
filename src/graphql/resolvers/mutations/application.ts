@@ -5,6 +5,7 @@ import {
   adminApplicationNotificationEmail,
 } from '@/libs/email-templates/application';
 import { createLogger } from '@/utils/logger';
+import { assertCanManageApplications, canManageApplications } from '@/utils/application-access';
 
 const logger = createLogger('APPLICATION_MUTATIONS');
 
@@ -155,19 +156,7 @@ export const applicationMutations = {
   updateRallyApplication: async (_: any, args: any, context: any) => {
     const { id, data } = args;
 
-    // Check authentication
-    if (!context.user) {
-      throw new Error('Authentication required');
-    }
-
-    // Check permissions
-    const hasPermission = context.user.permissions?.some(
-      (p: any) => p.resource === 'application' && p.action === 'manage'
-    );
-
-    if (!hasPermission) {
-      throw new Error('Permission denied: application:manage required');
-    }
+    assertCanManageApplications(context);
 
     try {
       // Verify application exists
@@ -206,19 +195,7 @@ export const applicationMutations = {
   changeApplicationStatus: async (_: any, args: any, context: any) => {
     const { id, status, notes } = args;
 
-    // Check authentication
-    if (!context.user) {
-      throw new Error('Authentication required');
-    }
-
-    // Check permissions
-    const hasPermission = context.user.permissions?.some(
-      (p: any) => p.resource === 'application' && p.action === 'manage'
-    );
-
-    if (!hasPermission) {
-      throw new Error('Permission denied: application:manage required');
-    }
+    assertCanManageApplications(context);
 
     try {
       // Verify application exists
@@ -264,19 +241,7 @@ export const applicationMutations = {
   approveApplication: async (_: any, args: any, context: any) => {
     const { id, notes } = args;
 
-    // Check authentication
-    if (!context.user) {
-      throw new Error('Authentication required');
-    }
-
-    // Check permissions
-    const hasPermission = context.user.permissions?.some(
-      (p: any) => p.resource === 'application' && p.action === 'manage'
-    );
-
-    if (!hasPermission) {
-      throw new Error('Permission denied: application:manage required');
-    }
+    assertCanManageApplications(context);
 
     try {
       // Verify application exists
@@ -348,19 +313,7 @@ export const applicationMutations = {
       throw new Error('Rejection reason is required');
     }
 
-    // Check authentication
-    if (!context.user) {
-      throw new Error('Authentication required');
-    }
-
-    // Check permissions
-    const hasPermission = context.user.permissions?.some(
-      (p: any) => p.resource === 'application' && p.action === 'manage'
-    );
-
-    if (!hasPermission) {
-      throw new Error('Permission denied: application:manage required');
-    }
+    assertCanManageApplications(context);
 
     try {
       // Verify application exists
@@ -397,19 +350,7 @@ export const applicationMutations = {
   waitlistApplication: async (_: any, args: any, context: any) => {
     const { id, notes } = args;
 
-    // Check authentication
-    if (!context.user) {
-      throw new Error('Authentication required');
-    }
-
-    // Check permissions
-    const hasPermission = context.user.permissions?.some(
-      (p: any) => p.resource === 'application' && p.action === 'manage'
-    );
-
-    if (!hasPermission) {
-      throw new Error('Permission denied: application:manage required');
-    }
+    assertCanManageApplications(context);
 
     try {
       // Verify application exists
@@ -446,19 +387,7 @@ export const applicationMutations = {
   confirmApplication: async (_: any, args: any, context: any) => {
     const { id } = args;
 
-    // Check authentication
-    if (!context.user) {
-      throw new Error('Authentication required');
-    }
-
-    // Check permissions
-    const hasPermission = context.user.permissions?.some(
-      (p: any) => p.resource === 'application' && p.action === 'manage'
-    );
-
-    if (!hasPermission) {
-      throw new Error('Permission denied: application:manage required');
-    }
+    assertCanManageApplications(context);
 
     try {
       // Verify application exists
@@ -498,9 +427,7 @@ export const applicationMutations = {
     }
 
     // Check permissions (can cancel own application or if admin)
-    const isAdmin = context.user.permissions?.some(
-      (p: any) => p.resource === 'application' && p.action === 'manage'
-    );
+    const isAdmin = canManageApplications(context.user);
 
     const existing = await context.prisma.rallyApplication.findFirst({
       where: { id, tenantId: context.tenant?.id, deletedAt: null },
@@ -552,19 +479,7 @@ export const applicationMutations = {
   addApplicationReviewNote: async (_: any, args: any, context: any) => {
     const { id, notes } = args;
 
-    // Check authentication
-    if (!context.user) {
-      throw new Error('Authentication required');
-    }
-
-    // Check permissions
-    const hasPermission = context.user.permissions?.some(
-      (p: any) => p.resource === 'application' && p.action === 'manage'
-    );
-
-    if (!hasPermission) {
-      throw new Error('Permission denied: application:manage required');
-    }
+    assertCanManageApplications(context);
 
     try {
       // Verify application exists
@@ -601,19 +516,7 @@ export const applicationMutations = {
   changeApplicationPaymentStatus: async (_: any, args: any, context: any) => {
     const { id, depositPaid, depositAmount, fullyPaid, totalAmount, fundraisingStatus } = args;
 
-    // Check authentication
-    if (!context.user) {
-      throw new Error('Authentication required');
-    }
-
-    // Check permissions
-    const hasPermission = context.user.permissions?.some(
-      (p: any) => p.resource === 'application' && p.action === 'manage'
-    );
-
-    if (!hasPermission) {
-      throw new Error('Permission denied: application:manage required');
-    }
+    assertCanManageApplications(context);
 
     try {
       // Verify application exists
@@ -649,19 +552,7 @@ export const applicationMutations = {
   deleteRallyApplication: async (_: any, args: any, context: any) => {
     const { id } = args;
 
-    // Check authentication
-    if (!context.user) {
-      throw new Error('Authentication required');
-    }
-
-    // Check permissions
-    const hasPermission = context.user.permissions?.some(
-      (p: any) => p.resource === 'application' && p.action === 'manage'
-    );
-
-    if (!hasPermission) {
-      throw new Error('Permission denied: application:manage required');
-    }
+    assertCanManageApplications(context);
 
     try {
       // Verify application exists
