@@ -49,6 +49,7 @@ describe('createParticipant', () => {
             firstName: 'Jane',
             lastName: 'Doe',
             country: 'USA',
+            photo: 'https://cdn.example.com/jane.jpg',
             rallyIds: ['rally-owned-1', 'rally-foreign'],
           },
         },
@@ -69,6 +70,7 @@ describe('createParticipant', () => {
           firstName: 'Jane',
           lastName: 'Doe',
           country: 'USA',
+          photo: 'https://cdn.example.com/jane.jpg',
           rallyIds: ['rally-owned-1', 'rally-owned-2'],
         },
       },
@@ -78,6 +80,20 @@ describe('createParticipant', () => {
     expect(context.prisma.$transaction).toHaveBeenCalledTimes(1);
     const ops = context.prisma.$transaction.mock.calls[0][0];
     expect(ops).toHaveLength(3); // 1 deleteMany + 2 creates
+  });
+});
+
+describe('createParticipant requires a featured photo (round 4)', () => {
+  it.each([undefined, null, '', '   '])('refuses photo %p', async (photo) => {
+    const context = buildContext();
+    await expect(
+      participantMutations.createParticipant(
+        null,
+        { input: { firstName: 'Jane', lastName: 'Doe', country: 'USA', photo } as any },
+        context
+      )
+    ).rejects.toThrow('A featured photo is required to create a rider.');
+    expect(context.prisma.participant.create).not.toHaveBeenCalled();
   });
 });
 

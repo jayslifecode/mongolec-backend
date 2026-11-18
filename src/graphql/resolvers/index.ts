@@ -1,5 +1,11 @@
 import { GraphQLScalarType, Kind } from 'graphql';
 import { canManageApplications } from '@/utils/application-access';
+import {
+  acceptanceMutations,
+  acceptanceQueries,
+  RallyAcceptanceFields,
+  RallyApplicationFields,
+} from './acceptance';
 
 // Import queries
 import { authQueries } from './queries/auth';
@@ -149,6 +155,7 @@ const Participant = {
               heroImage: true,
               status: true,
               location: true,
+              isPlaceholder: true,
               stories: { select: { slug: true, status: true } },
             },
           },
@@ -192,6 +199,8 @@ export const resolvers = {
   Rally,
   Participant,
   MerchOrder,
+  RallyApplication: RallyApplicationFields,
+  RallyAcceptance: RallyAcceptanceFields,
 
   // Root Query
   Query: {
@@ -223,6 +232,7 @@ export const resolvers = {
     ...rangerQueries,
     ...participantQueries,
     ...paymentQueries,
+    ...acceptanceQueries,
   },
 
   // Root Mutation
@@ -249,6 +259,7 @@ export const resolvers = {
     ...rangerMutations,
     ...participantMutations,
     ...paymentMutations,
+    ...acceptanceMutations,
   },
 };
 
