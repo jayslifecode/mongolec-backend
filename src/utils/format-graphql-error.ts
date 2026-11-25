@@ -35,7 +35,8 @@ export function publicGraphQLError(
   if (original instanceof AppError) {
     return { message: formatted.message, code: original.type, ...where };
   }
-  if (!original && typeof inputCode === 'string' && INPUT_ERROR_CODES.has(inputCode)) {
+  // Apollo may attach its own error object (e.g. ValidationError); the code is what matters.
+  if (typeof inputCode === 'string' && INPUT_ERROR_CODES.has(inputCode)) {
     return { message: formatted.message, code: inputCode, ...where };
   }
   const isDeliberate = original instanceof Error && original.constructor === Error;
