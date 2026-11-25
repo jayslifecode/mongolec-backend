@@ -1,6 +1,7 @@
 import { PrismaClient } from '@prisma/client';
 import { config } from '@/config';
 import { createLogger, logDatabaseQuery } from '@/utils/logger';
+import { softDeleteOperation } from './soft-delete';
 
 const logger = createLogger('DATABASE');
 
@@ -24,18 +25,12 @@ function createExtendedPrismaClient() {
         // Performance monitoring
         const start = Date.now();
 
-        // Soft delete: Intercept delete operations
-        if (operation === 'delete') {
-          // @ts-ignore - Transform delete to update
-          return (basePrisma[model] as any).update({
-            ...args,
-            data: { deletedAt: new Date() },
-          });
-        }
-
-        if (operation === 'deleteMany') {
-          // @ts-ignore - Transform deleteMany to updateMany
-          return (basePrisma[model] as any).updateMany({
+        // Soft delete: models with a deletedAt column are marked deleted instead of removed.
+        // Others (rider-rally links, user roles, ...) are really deleted.
+        const softOperation = softDeleteOperation(operation, model);
+        if (softOperation) {
+          // @ts-ignore - model accessor is resolved at runtime
+          return (basePrisma[model] as any)[softOperation]({
             ...args,
             data: { deletedAt: new Date() },
           });
@@ -170,7 +165,12 @@ class DatabaseClient {
    * Execute transaction with retry logic
    */
   async transaction<T>(
-    fn: (prisma: Omit<PrismaClient, '$connect' | '$disconnect' | '$on' | '$transaction' | '$use' | '$extends'>) => Promise<T>,
+    fn: (
+      prisma: Omit<
+        PrismaClient,
+        '$connect' | '$disconnect' | '$on' | '$transaction' | '$use' | '$extends'
+      >
+    ) => Promise<T>,
     maxRetries: number = 3
   ): Promise<T> {
     const prisma = DatabaseClient.getInstance();

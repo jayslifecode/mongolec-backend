@@ -1,3 +1,17 @@
+import { assertPermission } from '@/utils/permissions';
+import { AppError, ErrorType } from '@/types';
+
+/** A rally cannot end before it starts. */
+function assertDateOrder(startDate: Date, endDate: Date): void {
+  if (endDate.getTime() < startDate.getTime()) {
+    throw new AppError(
+      'The end date must be on or after the start date.',
+      ErrorType.VALIDATION_ERROR,
+      400
+    );
+  }
+}
+
 export const rallyMutations = {
   // Create a new rally
   createRally: async (_: any, args: any, context: any) => {
@@ -8,7 +22,6 @@ export const rallyMutations = {
       throw new Error('Authentication required');
     }
 
-    // Check permissions
     const hasPermission = context.user.permissions?.includes('rally:create');
 
     if (!hasPermission) {
@@ -18,6 +31,7 @@ export const rallyMutations = {
     const isSuperAdmin = context.user.roles?.includes('super_admin');
     const { tenantId: inputTenantId, ...rallyData } = data;
     const resolvedTenantId = isSuperAdmin && inputTenantId ? inputTenantId : context.tenant?.id;
+    assertDateOrder(new Date(data.startDate), new Date(data.endDate));
 
     try {
       // Check if slug already exists
@@ -37,7 +51,9 @@ export const rallyMutations = {
       // Calculate duration if not provided
       const startDate = new Date(data.startDate);
       const endDate = new Date(data.endDate);
-      const duration = data.duration || Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24));
+      const duration =
+        data.duration ||
+        Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24));
 
       // Create rally
       const rally = await context.prisma.rally.create({
@@ -62,6 +78,7 @@ export const rallyMutations = {
 
       return rally;
     } catch (error) {
+      if (error instanceof AppError) throw error;
       if (error instanceof Error && error.message.includes('already exists')) throw error;
       console.error('Error creating rally:', error);
       throw new Error('Failed to create rally');
@@ -77,7 +94,6 @@ export const rallyMutations = {
       throw new Error('Authentication required');
     }
 
-    // Check permissions
     const hasPermission = context.user.permissions?.includes('rally:update');
 
     if (!hasPermission) {
@@ -117,6 +133,7 @@ export const rallyMutations = {
       if (data.startDate || data.endDate) {
         const startDate = data.startDate ? new Date(data.startDate) : new Date(existing.startDate);
         const endDate = data.endDate ? new Date(data.endDate) : new Date(existing.endDate);
+        assertDateOrder(startDate, endDate);
         duration = Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24));
       }
 
@@ -151,7 +168,11 @@ export const rallyMutations = {
 
       return rally;
     } catch (error) {
-      if (error instanceof Error && (error.message === 'Rally not found' || error.message.includes('already exists'))) {
+      if (error instanceof AppError) throw error;
+      if (
+        error instanceof Error &&
+        (error.message === 'Rally not found' || error.message.includes('already exists'))
+      ) {
         throw error;
       }
       console.error('Error updating rally:', error);
@@ -168,7 +189,6 @@ export const rallyMutations = {
       throw new Error('Authentication required');
     }
 
-    // Check permissions
     const hasPermission = context.user.permissions?.includes('rally:delete');
 
     if (!hasPermission) {
@@ -213,7 +233,6 @@ export const rallyMutations = {
       throw new Error('Authentication required');
     }
 
-    // Check permissions
     const hasPermission = context.user.permissions?.includes('rally:update');
 
     if (!hasPermission) {
@@ -258,7 +277,6 @@ export const rallyMutations = {
       throw new Error('Authentication required');
     }
 
-    // Check permissions
     const hasPermission = context.user.permissions?.includes('rally:update');
 
     if (!hasPermission) {
@@ -303,7 +321,6 @@ export const rallyMutations = {
       throw new Error('Authentication required');
     }
 
-    // Check permissions
     const hasPermission = context.user.permissions?.includes('rally:update');
 
     if (!hasPermission) {
@@ -343,19 +360,7 @@ export const rallyMutations = {
   changeSubscriptionStatus: async (_: any, args: any, context: any) => {
     const { email, status } = args;
 
-    // Check authentication
-    if (!context.user) {
-      throw new Error('Authentication required');
-    }
-
-    // Check permissions
-    const hasPermission = context.user.permissions?.some((p: any) =>
-      p.resource === 'newsletter' && p.action === 'manage'
-    );
-
-    if (!hasPermission) {
-      throw new Error('Permission denied: newsletter:manage required');
-    }
+    assertPermission(context, 'newsletter:manage');
 
     try {
       // Verify subscription exists
@@ -375,7 +380,8 @@ export const rallyMutations = {
 
       return subscription;
     } catch (error) {
-      if (error instanceof Error && error.message === 'Newsletter subscription not found') throw error;
+      if (error instanceof Error && error.message === 'Newsletter subscription not found')
+        throw error;
       console.error('Error changing subscription status:', error);
       throw new Error('Failed to change subscription status');
     }

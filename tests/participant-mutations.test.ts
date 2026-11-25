@@ -77,14 +77,19 @@ describe('createParticipant', () => {
       context
     );
 
-    expect(context.prisma.$transaction).toHaveBeenCalledTimes(1);
-    const ops = context.prisma.$transaction.mock.calls[0][0];
-    expect(ops).toHaveLength(3); // 1 deleteMany + 2 creates
+    // One write creates the rider and its links together: a failure can never leave a rider
+    // without links behind (a retry then made a duplicate), and nothing is deleted on create.
+    expect(context.prisma.participant.create).toHaveBeenCalledTimes(1);
+    expect(context.prisma.participant.create.mock.calls[0][0].data.rallies).toEqual({
+      create: [{ rallyId: 'rally-owned-1' }, { rallyId: 'rally-owned-2' }],
+    });
+    expect(context.prisma.$transaction).not.toHaveBeenCalled();
+    expect(context.prisma.participantRally.deleteMany).not.toHaveBeenCalled();
   });
 });
 
 describe('createParticipant requires a featured photo (round 4)', () => {
-  it.each([undefined, null, '', '   '])('refuses photo %p', async (photo) => {
+  it.each([undefined, null, '', '   '])('refuses photo %p', async photo => {
     const context = buildContext();
     await expect(
       participantMutations.createParticipant(

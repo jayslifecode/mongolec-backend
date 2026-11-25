@@ -113,7 +113,11 @@ export const participantMutations = {
     if (!tenantId) throw new AppError('Tenant not found', ErrorType.TENANT_ERROR, 400);
     // Every rider is shown by their featured photo (round 4), so a new rider must have one.
     if (!input.photo?.trim()) {
-      throw new AppError('A featured photo is required to create a rider.', ErrorType.VALIDATION_ERROR, 400);
+      throw new AppError(
+        'A featured photo is required to create a rider.',
+        ErrorType.VALIDATION_ERROR,
+        400
+      );
     }
 
     const rallyIds = input.rallyIds ?? [];
@@ -138,12 +142,10 @@ export const participantMutations = {
         bio: input.bio,
         displayOrder: input.displayOrder ?? count,
         isActive: input.isActive ?? true,
+        // Created in the same write, so a rider never exists without the links it was given.
+        ...(rallyIds.length > 0 && { rallies: { create: rallyIds.map(rallyId => ({ rallyId })) } }),
       },
     });
-
-    if (rallyIds.length > 0) {
-      await replaceRallyLinks(context, participant.id, rallyIds);
-    }
 
     return context.prisma.participant.findUnique({
       where: { id: participant.id },
