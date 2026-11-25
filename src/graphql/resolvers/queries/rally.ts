@@ -1,5 +1,22 @@
 import { Prisma } from '@prisma/client';
 
+/** Drafts are work in progress in the admin; visitors never see them. */
+const HIDE_DRAFTS: Prisma.RallyWhereInput = { status: { not: 'DRAFT' } };
+
+function emptyPage(page: number, limit: number) {
+  return {
+    rallies: [],
+    pagination: {
+      total: 0,
+      totalPages: 0,
+      currentPage: page,
+      perPage: limit,
+      hasNextPage: false,
+      hasPreviousPage: page > 1,
+    },
+  };
+}
+
 export const rallyQueries = {
   // Get all rallies with pagination and filters
   getRallies: async (_: any, args: any, context: any) => {
@@ -25,8 +42,10 @@ export const rallyQueries = {
       const where: Prisma.RallyWhereInput = {
         ...tenantFilter,
         deletedAt: null,
-        ...(status && { status }),
+        ...(status ? { status } : !context.user && HIDE_DRAFTS),
       };
+      // A visitor asking for drafts by status still gets none.
+      if (!context.user && status === 'DRAFT') return emptyPage(page, limit);
 
       // Note: JSON field search would need to use raw SQL or a different approach
       // For now, we'll skip searching JSON fields
@@ -104,6 +123,7 @@ export const rallyQueries = {
           deletedAt: null,
           ...(slug && { slug }),
           ...(id && { id }),
+          ...(!context.user && HIDE_DRAFTS),
         },
         include: {
           tenant: true,
