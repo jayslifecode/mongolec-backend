@@ -53,6 +53,11 @@ jobs:
 
             docker compose -f docker-compose.prod.yml pull
             docker compose -f docker-compose.prod.yml --env-file .env up -d --force-recreate
+
+            # Each deploy leaves the previous backend image (~700 MB) behind. Remove images that no
+            # container uses, or the 14 GB disk fills up (it did on 2026-11-25 and a deploy failed).
+            docker image prune -a -f
+            df -h /
         env:
           GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GHCR_USERNAME: ${{ github.actor }}
