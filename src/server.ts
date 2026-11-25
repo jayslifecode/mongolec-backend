@@ -21,8 +21,30 @@ import { createLogger, logRequest } from '@/utils/logger';
 import { AppError, ErrorType } from '@/types';
 import { authenticate, optionalAuthenticate } from '@/auth';
 import { csrfProtection, graphqlRateLimit, authRateLimit, sanitizeBody } from '@/middleware';
+import { resolveRequestTenant, type RequestTenant } from '@/utils/request-tenant';
 
 const logger = createLogger('SERVER');
+
+const TENANT_CACHE_TTL_SECONDS = 300;
+
+/** Active tenant by slug or id, cached in Redis for a few minutes. */
+async function findActiveTenant(slugOrId: string): Promise<RequestTenant | null> {
+  const cacheKey = `tenant:slug:${slugOrId}`;
+  const cached = redisClient.isHealthy() ? await redisClient.getClient().get(cacheKey) : null;
+  if (cached) return JSON.parse(cached) as RequestTenant;
+
+  const tenant = await prisma.tenant.findFirst({
+    where: { OR: [{ slug: slugOrId }, { id: slugOrId }], status: 'ACTIVE', deletedAt: null },
+    select: { id: true, slug: true, name: true, status: true, plan: true },
+  });
+  if (tenant && redisClient.isHealthy()) {
+    redisClient
+      .getClient()
+      .set(cacheKey, JSON.stringify(tenant), 'EX', TENANT_CACHE_TTL_SECONDS)
+      .catch(() => {});
+  }
+  return tenant;
+}
 
 /**
  * Apollo Server with Express integration
@@ -323,36 +345,15 @@ graphql_operations_total 0
       expressMiddleware(this.apolloServer, {
         context: async ({ req, res }): Promise<GraphQLContext> => {
           const user = (req as any).user || null;
-          let tenant = (req as any).tenant || null;
 
-          // For unauthenticated requests, resolve tenant from X-Tenant-ID header
-          if (!tenant) {
-            const headerValue = req.headers['x-tenant-id'] as string | undefined;
-            if (headerValue) {
-              const cacheKey = `tenant:slug:${headerValue}`;
-              const cached = redisClient.isHealthy()
-                ? await redisClient.getClient().get(cacheKey)
-                : null;
-              if (cached) {
-                tenant = JSON.parse(cached);
-              } else {
-                tenant = await prisma.tenant.findFirst({
-                  where: {
-                    OR: [{ slug: headerValue }, { id: headerValue }],
-                    status: 'ACTIVE',
-                    deletedAt: null,
-                  },
-                  select: { id: true, slug: true, name: true, status: true, plan: true },
-                });
-                if (tenant && redisClient.isHealthy()) {
-                  redisClient
-                    .getClient()
-                    .set(cacheKey, JSON.stringify(tenant), 'EX', 300)
-                    .catch(() => {});
-                }
-              }
-            }
-          }
+          // Public requests name their tenant in X-Tenant-ID; a super_admin may use it to work
+          // in another tenant (see resolveRequestTenant).
+          const tenant = await resolveRequestTenant({
+            authTenant: (req as any).tenant || null,
+            user,
+            headerValue: req.headers['x-tenant-id'],
+            lookup: findActiveTenant,
+          });
 
           return {
             req,
@@ -360,7 +361,8 @@ graphql_operations_total 0
             prisma,
             redis: redisClient.isHealthy() ? redisClient.getClient() : (null as any),
             user,
-            tenant,
+            // Same partial tenant record (id, slug, name, status, plan) the context always carried.
+            tenant: tenant as GraphQLContext['tenant'],
             dataSources: {
               userService: null,
               tenantService: null,
