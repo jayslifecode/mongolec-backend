@@ -22,6 +22,7 @@ import { AppError, ErrorType } from '@/types';
 import { authenticate, optionalAuthenticate } from '@/auth';
 import { csrfProtection, graphqlRateLimit, authRateLimit, sanitizeBody } from '@/middleware';
 import { resolveRequestTenant, type RequestTenant } from '@/utils/request-tenant';
+import { publicGraphQLError } from '@/utils/format-graphql-error';
 
 const logger = createLogger('SERVER');
 
@@ -116,35 +117,9 @@ export class GraphQLServer {
           locations: formattedError.locations,
         });
 
-        // Get the original error (Apollo wraps custom errors in GraphQLError)
-        const originalError = (error as any).originalError;
-
-        // Don't expose internal errors in production
-        if (config.isProduction && !(originalError instanceof AppError)) {
-          return {
-            message: 'Internal server error',
-            code: 'INTERNAL_ERROR',
-            path: formattedError.path,
-            locations: formattedError.locations,
-          };
-        }
-
-        // For AppError instances, return the proper error type
-        if (originalError instanceof AppError) {
-          return {
-            message: formattedError.message,
-            code: originalError.type,
-            path: formattedError.path,
-            locations: formattedError.locations,
-            ...(config.isDevelopment && { stack: (error as Error)?.stack }),
-          };
-        }
-
+        // Our own and deliberate messages and input errors are shown; internal ones are hidden.
         return {
-          message: formattedError.message,
-          code: (error as any)?.code || 'UNKNOWN_ERROR',
-          path: formattedError.path,
-          locations: formattedError.locations,
+          ...publicGraphQLError(formattedError, error, config.isProduction),
           ...(config.isDevelopment && { stack: (error as Error)?.stack }),
         };
       },
