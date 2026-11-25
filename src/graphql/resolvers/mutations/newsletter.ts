@@ -1,3 +1,4 @@
+import { assertPermission } from '@/utils/permissions';
 import { assertSubmissionAllowed } from '@/middleware/submission-throttle';
 import { sendEmail } from '@/libs/email';
 import { newsletterWelcomeEmail } from '@/libs/email-templates/newsletter';
@@ -138,19 +139,7 @@ export const newsletterMutations = {
   updateNewsletterSubscription: async (_: any, args: any, context: any) => {
     const { id, data } = args;
 
-    // Check authentication
-    if (!context.user) {
-      throw new Error('Authentication required');
-    }
-
-    // Check permissions
-    const hasPermission = context.user.permissions?.some(
-      (p: any) => p.resource === 'newsletter' && p.action === 'manage'
-    );
-
-    if (!hasPermission) {
-      throw new Error('Permission denied: newsletter:manage required');
-    }
+    assertPermission(context, 'newsletter:manage');
 
     try {
       // Verify subscription exists
@@ -181,19 +170,7 @@ export const newsletterMutations = {
   deleteNewsletterSubscription: async (_: any, args: any, context: any) => {
     const { id } = args;
 
-    // Check authentication
-    if (!context.user) {
-      throw new Error('Authentication required');
-    }
-
-    // Check permissions
-    const hasPermission = context.user.permissions?.some(
-      (p: any) => p.resource === 'newsletter' && p.action === 'manage'
-    );
-
-    if (!hasPermission) {
-      throw new Error('Permission denied: newsletter:manage required');
-    }
+    assertPermission(context, 'newsletter:manage');
 
     try {
       // Verify subscription exists

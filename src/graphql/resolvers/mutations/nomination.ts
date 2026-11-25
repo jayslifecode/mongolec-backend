@@ -1,3 +1,4 @@
+import { assertPermission } from '@/utils/permissions';
 import { assertSubmissionAllowed } from '@/middleware/submission-throttle';
 import { sendEmail, getAdminNotifyEmail } from '@/libs/email';
 import {
@@ -97,19 +98,7 @@ export const nominationMutations = {
   updateParkNomination: async (_: any, args: any, context: any) => {
     const { id, data } = args;
 
-    // Check authentication
-    if (!context.user) {
-      throw new Error('Authentication required');
-    }
-
-    // Check permissions
-    const hasPermission = context.user.permissions?.some(
-      (p: any) => p.resource === 'nomination' && p.action === 'manage'
-    );
-
-    if (!hasPermission) {
-      throw new Error('Permission denied: nomination:manage required');
-    }
+    assertPermission(context, 'nomination:manage');
 
     try {
       // Verify nomination exists
@@ -148,19 +137,7 @@ export const nominationMutations = {
   changeNominationStatus: async (_: any, args: any, context: any) => {
     const { id, status, notes } = args;
 
-    // Check authentication
-    if (!context.user) {
-      throw new Error('Authentication required');
-    }
-
-    // Check permissions
-    const hasPermission = context.user.permissions?.some(
-      (p: any) => p.resource === 'nomination' && p.action === 'manage'
-    );
-
-    if (!hasPermission) {
-      throw new Error('Permission denied: nomination:manage required');
-    }
+    assertPermission(context, 'nomination:manage');
 
     try {
       // Verify nomination exists
@@ -206,19 +183,7 @@ export const nominationMutations = {
   approveNomination: async (_: any, args: any, context: any) => {
     const { id, notes } = args;
 
-    // Check authentication
-    if (!context.user) {
-      throw new Error('Authentication required');
-    }
-
-    // Check permissions
-    const hasPermission = context.user.permissions?.some(
-      (p: any) => p.resource === 'nomination' && p.action === 'manage'
-    );
-
-    if (!hasPermission) {
-      throw new Error('Permission denied: nomination:manage required');
-    }
+    assertPermission(context, 'nomination:manage');
 
     try {
       // Verify nomination exists
@@ -265,19 +230,7 @@ export const nominationMutations = {
       throw new Error('Rejection reason is required');
     }
 
-    // Check authentication
-    if (!context.user) {
-      throw new Error('Authentication required');
-    }
-
-    // Check permissions
-    const hasPermission = context.user.permissions?.some(
-      (p: any) => p.resource === 'nomination' && p.action === 'manage'
-    );
-
-    if (!hasPermission) {
-      throw new Error('Permission denied: nomination:manage required');
-    }
+    assertPermission(context, 'nomination:manage');
 
     try {
       // Verify nomination exists
@@ -314,19 +267,7 @@ export const nominationMutations = {
   addNominationReviewNote: async (_: any, args: any, context: any) => {
     const { id, notes } = args;
 
-    // Check authentication
-    if (!context.user) {
-      throw new Error('Authentication required');
-    }
-
-    // Check permissions
-    const hasPermission = context.user.permissions?.some(
-      (p: any) => p.resource === 'nomination' && p.action === 'manage'
-    );
-
-    if (!hasPermission) {
-      throw new Error('Permission denied: nomination:manage required');
-    }
+    assertPermission(context, 'nomination:manage');
 
     try {
       // Verify nomination exists
@@ -363,19 +304,7 @@ export const nominationMutations = {
   deleteParkNomination: async (_: any, args: any, context: any) => {
     const { id } = args;
 
-    // Check authentication
-    if (!context.user) {
-      throw new Error('Authentication required');
-    }
-
-    // Check permissions
-    const hasPermission = context.user.permissions?.some(
-      (p: any) => p.resource === 'nomination' && p.action === 'manage'
-    );
-
-    if (!hasPermission) {
-      throw new Error('Permission denied: nomination:manage required');
-    }
+    assertPermission(context, 'nomination:manage');
 
     try {
       // Verify nomination exists

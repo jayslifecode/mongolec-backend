@@ -1,21 +1,10 @@
+import { assertPermission } from '@/utils/permissions';
 export const partnershipMutations = {
   // Create park partnership (admin only)
   createParkPartnership: async (_: any, args: any, context: any) => {
     const { data } = args;
 
-    // Check authentication
-    if (!context.user) {
-      throw new Error('Authentication required');
-    }
-
-    // Check permissions
-    const hasPermission = context.user.permissions?.some((p: any) =>
-      p.resource === 'partnership' && p.action === 'create'
-    );
-
-    if (!hasPermission) {
-      throw new Error('Permission denied: partnership:create required');
-    }
+    assertPermission(context, 'partnership:create');
 
     try {
       // Create partnership
@@ -47,19 +36,7 @@ export const partnershipMutations = {
   updateParkPartnership: async (_: any, args: any, context: any) => {
     const { id, data } = args;
 
-    // Check authentication
-    if (!context.user) {
-      throw new Error('Authentication required');
-    }
-
-    // Check permissions
-    const hasPermission = context.user.permissions?.some((p: any) =>
-      p.resource === 'partnership' && p.action === 'update'
-    );
-
-    if (!hasPermission) {
-      throw new Error('Permission denied: partnership:update required');
-    }
+    assertPermission(context, 'partnership:update');
 
     try {
       // Verify partnership exists
@@ -98,19 +75,7 @@ export const partnershipMutations = {
   changePartnershipStatus: async (_: any, args: any, context: any) => {
     const { id, status } = args;
 
-    // Check authentication
-    if (!context.user) {
-      throw new Error('Authentication required');
-    }
-
-    // Check permissions
-    const hasPermission = context.user.permissions?.some((p: any) =>
-      p.resource === 'partnership' && p.action === 'manage'
-    );
-
-    if (!hasPermission) {
-      throw new Error('Permission denied: partnership:manage required');
-    }
+    assertPermission(context, 'partnership:manage');
 
     try {
       // Verify partnership exists
@@ -149,19 +114,7 @@ export const partnershipMutations = {
   deleteParkPartnership: async (_: any, args: any, context: any) => {
     const { id } = args;
 
-    // Check authentication
-    if (!context.user) {
-      throw new Error('Authentication required');
-    }
-
-    // Check permissions
-    const hasPermission = context.user.permissions?.some((p: any) =>
-      p.resource === 'partnership' && p.action === 'delete'
-    );
-
-    if (!hasPermission) {
-      throw new Error('Permission denied: partnership:delete required');
-    }
+    assertPermission(context, 'partnership:delete');
 
     try {
       // Verify partnership exists

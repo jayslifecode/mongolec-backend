@@ -1,21 +1,10 @@
+import { assertPermission } from '@/utils/permissions';
 export const mediaMutations = {
   // Create media (admin only)
   createRallyMedia: async (_: any, args: any, context: any) => {
     const { data } = args;
 
-    // Check authentication
-    if (!context.user) {
-      throw new Error('Authentication required');
-    }
-
-    // Check permissions
-    const hasPermission = context.user.permissions?.some((p: any) =>
-      p.resource === 'media' && p.action === 'create'
-    );
-
-    if (!hasPermission) {
-      throw new Error('Permission denied: media:create required');
-    }
+    assertPermission(context, 'media:create');
 
     try {
       // Get max display order for this rally
@@ -29,7 +18,8 @@ export const mediaMutations = {
         select: { displayOrder: true },
       });
 
-      const displayOrder = data.displayOrder !== undefined ? data.displayOrder : (maxOrder?.displayOrder || 0) + 1;
+      const displayOrder =
+        data.displayOrder !== undefined ? data.displayOrder : (maxOrder?.displayOrder || 0) + 1;
 
       // Create media
       const media = await context.prisma.rallyMedia.create({
@@ -60,19 +50,7 @@ export const mediaMutations = {
   updateRallyMedia: async (_: any, args: any, context: any) => {
     const { id, data } = args;
 
-    // Check authentication
-    if (!context.user) {
-      throw new Error('Authentication required');
-    }
-
-    // Check permissions
-    const hasPermission = context.user.permissions?.some((p: any) =>
-      p.resource === 'media' && p.action === 'update'
-    );
-
-    if (!hasPermission) {
-      throw new Error('Permission denied: media:update required');
-    }
+    assertPermission(context, 'media:update');
 
     try {
       // Verify media exists
@@ -111,19 +89,7 @@ export const mediaMutations = {
   deleteRallyMedia: async (_: any, args: any, context: any) => {
     const { id } = args;
 
-    // Check authentication
-    if (!context.user) {
-      throw new Error('Authentication required');
-    }
-
-    // Check permissions
-    const hasPermission = context.user.permissions?.some((p: any) =>
-      p.resource === 'media' && p.action === 'delete'
-    );
-
-    if (!hasPermission) {
-      throw new Error('Permission denied: media:delete required');
-    }
+    assertPermission(context, 'media:delete');
 
     try {
       // Verify media exists
@@ -156,19 +122,7 @@ export const mediaMutations = {
   reorderRallyMedia: async (_: any, args: any, context: any) => {
     const { rallyId, mediaIds } = args;
 
-    // Check authentication
-    if (!context.user) {
-      throw new Error('Authentication required');
-    }
-
-    // Check permissions
-    const hasPermission = context.user.permissions?.some((p: any) =>
-      p.resource === 'media' && p.action === 'update'
-    );
-
-    if (!hasPermission) {
-      throw new Error('Permission denied: media:update required');
-    }
+    assertPermission(context, 'media:update');
 
     try {
       // Update display order for each media item

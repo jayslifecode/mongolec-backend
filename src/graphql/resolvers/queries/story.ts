@@ -1,3 +1,4 @@
+import { assertPermission } from '@/utils/permissions';
 import { Prisma } from '@prisma/client';
 
 const STORY_INCLUDE = {
@@ -307,17 +308,7 @@ export const storyQueries = {
   getDraftStories: async (_: any, args: any, context: any) => {
     const { page = 1, limit = 20 } = args;
 
-    if (!context.user) {
-      throw new Error('Authentication required');
-    }
-
-    const hasPermission = context.user.permissions?.some(
-      (p: any) => p.resource === 'story' && p.action === 'manage'
-    );
-
-    if (!hasPermission) {
-      throw new Error('Permission denied: story:manage required');
-    }
+    assertPermission(context, 'story:manage');
 
     try {
       const where: Prisma.StoryWhereInput = {
@@ -365,17 +356,7 @@ export const storyQueries = {
   getStoryStats: async (_: any, args: any, context: any) => {
     const { rallyId } = args;
 
-    if (!context.user) {
-      throw new Error('Authentication required');
-    }
-
-    const hasPermission = context.user.permissions?.some(
-      (p: any) => p.resource === 'story' && p.action === 'manage'
-    );
-
-    if (!hasPermission) {
-      throw new Error('Permission denied: story:manage required');
-    }
+    assertPermission(context, 'story:manage');
 
     try {
       const where: Prisma.StoryWhereInput = {

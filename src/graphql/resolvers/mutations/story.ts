@@ -1,21 +1,10 @@
+import { assertPermission } from '@/utils/permissions';
 export const storyMutations = {
   // Create story (admin only)
   createStory: async (_: any, args: any, context: any) => {
     const { data } = args;
 
-    // Check authentication
-    if (!context.user) {
-      throw new Error('Authentication required');
-    }
-
-    // Check permissions
-    const hasPermission = context.user.permissions?.some((p: any) =>
-      p.resource === 'story' && p.action === 'create'
-    );
-
-    if (!hasPermission) {
-      throw new Error('Permission denied: story:create required');
-    }
+    assertPermission(context, 'story:create');
 
     try {
       // Check if slug already exists
@@ -73,19 +62,7 @@ export const storyMutations = {
   updateStory: async (_: any, args: any, context: any) => {
     const { id, data } = args;
 
-    // Check authentication
-    if (!context.user) {
-      throw new Error('Authentication required');
-    }
-
-    // Check permissions
-    const hasPermission = context.user.permissions?.some((p: any) =>
-      p.resource === 'story' && p.action === 'update'
-    );
-
-    if (!hasPermission) {
-      throw new Error('Permission denied: story:update required');
-    }
+    assertPermission(context, 'story:update');
 
     try {
       // Verify story exists
@@ -152,19 +129,7 @@ export const storyMutations = {
   publishStory: async (_: any, args: any, context: any) => {
     const { id } = args;
 
-    // Check authentication
-    if (!context.user) {
-      throw new Error('Authentication required');
-    }
-
-    // Check permissions
-    const hasPermission = context.user.permissions?.some((p: any) =>
-      p.resource === 'story' && p.action === 'publish'
-    );
-
-    if (!hasPermission) {
-      throw new Error('Permission denied: story:publish required');
-    }
+    assertPermission(context, 'story:publish');
 
     try {
       // Verify story exists
@@ -214,19 +179,7 @@ export const storyMutations = {
   unpublishStory: async (_: any, args: any, context: any) => {
     const { id } = args;
 
-    // Check authentication
-    if (!context.user) {
-      throw new Error('Authentication required');
-    }
-
-    // Check permissions
-    const hasPermission = context.user.permissions?.some((p: any) =>
-      p.resource === 'story' && p.action === 'publish'
-    );
-
-    if (!hasPermission) {
-      throw new Error('Permission denied: story:publish required');
-    }
+    assertPermission(context, 'story:publish');
 
     try {
       // Verify story exists
@@ -275,19 +228,7 @@ export const storyMutations = {
   toggleStoryFeatured: async (_: any, args: any, context: any) => {
     const { id } = args;
 
-    // Check authentication
-    if (!context.user) {
-      throw new Error('Authentication required');
-    }
-
-    // Check permissions
-    const hasPermission = context.user.permissions?.some((p: any) =>
-      p.resource === 'story' && p.action === 'manage'
-    );
-
-    if (!hasPermission) {
-      throw new Error('Permission denied: story:manage required');
-    }
+    assertPermission(context, 'story:manage');
 
     try {
       // Verify story exists
@@ -336,19 +277,7 @@ export const storyMutations = {
   deleteStory: async (_: any, args: any, context: any) => {
     const { id } = args;
 
-    // Check authentication
-    if (!context.user) {
-      throw new Error('Authentication required');
-    }
-
-    // Check permissions
-    const hasPermission = context.user.permissions?.some((p: any) =>
-      p.resource === 'story' && p.action === 'delete'
-    );
-
-    if (!hasPermission) {
-      throw new Error('Permission denied: story:delete required');
-    }
+    assertPermission(context, 'story:delete');
 
     try {
       // Verify story exists
