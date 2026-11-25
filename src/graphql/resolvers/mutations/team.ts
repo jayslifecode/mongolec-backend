@@ -7,6 +7,11 @@ import { createLogger } from '@/utils/logger';
 
 const logger = createLogger('TEAM_MUTATIONS');
 
+/** The tenant this request works in (a super_admin may name another one), else the user's own. */
+function requestTenantId(context: GraphQLContext): string | undefined {
+  return context.tenant?.id ?? context.user?.tenantId;
+}
+
 function getClientIp(context: GraphQLContext): string {
   return context.req?.ip || context.req?.socket?.remoteAddress || 'unknown';
 }
@@ -34,7 +39,7 @@ export const teamMutations = {
   ) => {
     checkPermission(context, 'content:create');
     const isSuperAdmin = context.user?.roles?.includes('super_admin');
-    const tenantId = isSuperAdmin && data.tenantId ? data.tenantId : context.user?.tenantId;
+    const tenantId = isSuperAdmin && data.tenantId ? data.tenantId : requestTenantId(context);
     if (!tenantId) throw new Error('Tenant not found');
     const count = await context.prisma.teamMember.count({ where: { tenantId } });
     return context.prisma.teamMember.create({
@@ -76,7 +81,7 @@ export const teamMutations = {
   ) => {
     checkPermission(context, 'content:update');
     const existing = await context.prisma.teamMember.findFirst({
-      where: { id, tenantId: context.user?.tenantId },
+      where: { id, tenantId: requestTenantId(context) },
     });
     if (!existing) throw new AppError('Team member not found', ErrorType.NOT_FOUND, 404);
     return context.prisma.teamMember.update({
@@ -98,7 +103,7 @@ export const teamMutations = {
   deleteTeamMember: async (_: unknown, { id }: { id: string }, context: GraphQLContext) => {
     checkPermission(context, 'content:delete');
     const existing = await context.prisma.teamMember.findFirst({
-      where: { id, tenantId: context.user?.tenantId },
+      where: { id, tenantId: requestTenantId(context) },
     });
     if (!existing) throw new AppError('Team member not found', ErrorType.NOT_FOUND, 404);
     await context.prisma.teamMember.delete({ where: { id } });
@@ -107,7 +112,7 @@ export const teamMutations = {
 
   reorderTeamMembers: async (_: unknown, { ids }: { ids: string[] }, context: GraphQLContext) => {
     checkPermission(context, 'content:update');
-    const tenantId = context.user?.tenantId;
+    const tenantId = requestTenantId(context);
     if (!tenantId) throw new AppError('Tenant not found', ErrorType.TENANT_ERROR, 400);
     const existing = await context.prisma.teamMember.findMany({
       where: { id: { in: ids }, tenantId },
