@@ -43,6 +43,7 @@ export const rallyMutations = gql`
     impactOverview: JSON!
     conservationActivities: JSON!
     rangerPartnerships: JSON!
+    status: RallyStatus
     isRecruiting: Boolean
     isPlaceholder: Boolean
     applicationDeadline: DateTime
