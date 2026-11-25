@@ -28,7 +28,6 @@ export const storyMutations = {
         data: {
           ...data,
           tenantId: context.tenant?.id,
-          authorId: context.user.id,
           status: data.status || 'DRAFT',
         },
         include: {
@@ -37,14 +36,6 @@ export const storyMutations = {
               id: true,
               slug: true,
               title: true,
-            },
-          },
-          author: {
-            select: {
-              id: true,
-              firstName: true,
-              lastName: true,
-              email: true,
             },
           },
         },
@@ -105,14 +96,6 @@ export const storyMutations = {
               title: true,
             },
           },
-          author: {
-            select: {
-              id: true,
-              firstName: true,
-              lastName: true,
-              email: true,
-            },
-          },
         },
       });
 
@@ -157,13 +140,6 @@ export const storyMutations = {
               title: true,
             },
           },
-          author: {
-            select: {
-              id: true,
-              firstName: true,
-              lastName: true,
-            },
-          },
         },
       });
 
@@ -206,13 +182,6 @@ export const storyMutations = {
               title: true,
             },
           },
-          author: {
-            select: {
-              id: true,
-              firstName: true,
-              lastName: true,
-            },
-          },
         },
       });
 
@@ -244,7 +213,7 @@ export const storyMutations = {
       const story = await context.prisma.story.update({
         where: { id },
         data: {
-          isFeatured: !existing.isFeatured,
+          featured: !existing.featured,
           updatedAt: new Date(),
         },
         include: {
@@ -253,13 +222,6 @@ export const storyMutations = {
               id: true,
               slug: true,
               title: true,
-            },
-          },
-          author: {
-            select: {
-              id: true,
-              firstName: true,
-              lastName: true,
             },
           },
         },
