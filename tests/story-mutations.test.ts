@@ -45,6 +45,16 @@ describe('story mutations only use fields the Story model has', () => {
     expectValidWrites(context);
   });
 
+  it('createStory sets every required field (e.g. createdById), else Prisma rejects it', async () => {
+    const context = buildContext();
+    await storyMutations.createStory(null, { data: input }, context);
+    const required = storyModel.fields
+      .filter(f => f.kind === 'scalar' && f.isRequired && !f.hasDefaultValue && !f.isUpdatedAt)
+      .map(f => f.name);
+    const data = context.prisma.story.create.mock.calls[0][0].data;
+    for (const name of required) expect(data).toHaveProperty(name);
+  });
+
   it('updateStory', async () => {
     const context = buildContext();
     await storyMutations.updateStory(null, { id: 's1', data: { title: { en: 'T2' } } }, context);
