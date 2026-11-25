@@ -1,8 +1,10 @@
+import { assertCanManageApplications } from '@/utils/application-access';
 import { Prisma } from '@prisma/client';
 
 export const applicationQueries = {
   // Get all applications with filters
   getApplications: async (_: any, args: any, context: any) => {
+    assertCanManageApplications(context);
     const { page = 1, limit = 20, status, rallyId, search, orderBy = 'createdAt', orderDirection = 'desc' } = args;
     const isSuperAdmin = context.user?.roles?.includes('super_admin');
 
@@ -70,6 +72,7 @@ export const applicationQueries = {
 
   // Get single application by ID
   getApplication: async (_: any, args: any, context: any) => {
+    assertCanManageApplications(context);
     const { id } = args;
     const isSuperAdmin = context.user?.roles?.includes('super_admin');
 
@@ -107,6 +110,7 @@ export const applicationQueries = {
 
   // Get pending applications
   getPendingApplications: async (_: any, args: any, context: any) => {
+    assertCanManageApplications(context);
     const { page = 1, limit = 20 } = args;
     const isSuperAdmin = context.user?.roles?.includes('super_admin');
 
@@ -157,6 +161,7 @@ export const applicationQueries = {
 
   // Get approved applications
   getApprovedApplications: async (_: any, args: any, context: any) => {
+    assertCanManageApplications(context);
     const { page = 1, limit = 20, rallyId } = args;
     const isSuperAdmin = context.user?.roles?.includes('super_admin');
 
@@ -207,6 +212,7 @@ export const applicationQueries = {
 
   // Get application statistics
   getApplicationStats: async (_: any, args: any, context: any) => {
+    assertCanManageApplications(context);
     const { rallyId } = args;
     const isSuperAdmin = context.user?.roles?.includes('super_admin');
 
@@ -266,6 +272,7 @@ export const applicationQueries = {
 
   // Check if email has already applied to a rally
   checkHasApplied: async (_: any, args: any, context: any) => {
+    assertCanManageApplications(context);
     const { rallyId, email } = args;
 
     try {

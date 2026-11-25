@@ -111,6 +111,10 @@ export const participantMutations = {
     checkPermission(context, 'content:create');
     const tenantId = context.tenant?.id ?? context.user?.tenantId;
     if (!tenantId) throw new AppError('Tenant not found', ErrorType.TENANT_ERROR, 400);
+    // Every rider is shown by their featured photo (round 4), so a new rider must have one.
+    if (!input.photo?.trim()) {
+      throw new AppError('A featured photo is required to create a rider.', ErrorType.VALIDATION_ERROR, 400);
+    }
 
     const rallyIds = input.rallyIds ?? [];
     await assertRallyIdsBelongToTenant(context, tenantId, rallyIds);

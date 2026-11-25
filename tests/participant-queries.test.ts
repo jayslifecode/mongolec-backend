@@ -83,3 +83,19 @@ describe('Participant.tier / rallyCount field resolvers', () => {
     expect(Participant.tier(p)).toBe('LEGEND');
   });
 });
+
+describe('rally placeholder flag on rider links (round 4: placeholder rallies are not linked)', () => {
+  it('the participant query loads isPlaceholder for every linked rally', async () => {
+    const context = buildContext(participantFixture());
+    await participantQueries.getParticipant(null, { slug: 'wesley-thornberry' }, context);
+    const [{ include }] = context.prisma.participant.findFirst.mock.calls[0];
+    expect(include.rallies.include.rally.select.isPlaceholder).toBe(true);
+  });
+
+  it('the lazy fallback also loads isPlaceholder', async () => {
+    const findMany = jest.fn().mockResolvedValue([]);
+    await Participant.rallies({ id: 'rider-1' }, {}, { user: null, prisma: { participantRally: { findMany } } });
+    const [{ include }] = findMany.mock.calls[0];
+    expect(include.rally.select.isPlaceholder).toBe(true);
+  });
+});

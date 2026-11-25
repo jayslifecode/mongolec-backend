@@ -10,6 +10,7 @@ import { rallySchema } from './rally';
 import { teamSchema } from './team';
 import { rangerSchema } from './ranger';
 import { participantSchema } from './participant';
+import { acceptanceSchema } from './acceptance';
 
 /**
  * Base Schema
@@ -60,6 +61,7 @@ export const typeDefs = [
   teamSchema,
   rangerSchema,
   participantSchema,
+  acceptanceSchema,
 ];
 
 export default typeDefs;

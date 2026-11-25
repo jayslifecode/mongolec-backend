@@ -999,6 +999,11 @@ model Rally {
   metaDescription  Json?
   featuredImage    String?
 
+  // Round 4: "Photos by: ..." credit under the gallery, and the acceptance-letter amounts
+  // ({currency, minimumContribution, deposit, nonRefundable, finalPaymentDue}) for this rally.
+  photoCredit      String?
+  acceptanceTerms  Json?
+
   // Multi-tenant & Timestamps
   tenantId        String
   tenant          Tenant      @relation(fields: [tenantId], references: [id], onDelete: Cascade)
@@ -1110,6 +1115,11 @@ model RallyApplication {
   reviewedBy      String?
   reviewNotes     Json?
 
+  // Acceptance (round 4): approving creates a private link token; the rider's answers live in RallyAcceptance
+  acceptanceToken          String?   @unique
+  acceptanceTokenCreatedAt DateTime?
+  acceptance               RallyAcceptance?
+
   // Multi-tenant & Timestamps
   tenantId        String
   tenant          Tenant      @relation(fields: [tenantId], references: [id], onDelete: Cascade)
@@ -1123,6 +1133,44 @@ model RallyApplication {
   @@index([rallyId, status])
   @@index([tenantId, rallyId])
   @@map("rally_applications")
+}
+
+/// The acceptance letter an approved rider submits from their private link (replaces the Jotform).
+/// One per application. The passport copy is kept here (never in public storage) and is only
+/// readable by admins.
+model RallyAcceptance {
+  id                 String           @id @default(cuid())
+  applicationId      String           @unique
+  application        RallyApplication @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  tenantId           String
+
+  firstName          String
+  lastName           String
+  email              String
+  agreedToCommitment Boolean
+  agreedToLiability  Boolean
+
+  usePastPhotoAndBio Boolean          @default(false)
+  photoUrl           String?
+  bio                String?          @db.Text
+
+  shippingAddress    Json             // {street, street2, city, state, postalCode, country}
+  tshirtSize         String
+  dietaryRestrictions String
+  roomingPreference  String           // TWIN | SINGLE
+  roommatePreference String?
+  questions          String?          @db.Text
+
+  passportFileName   String?
+  passportMimeType   String?
+  passportData       Bytes?
+
+  ipAddress          String?
+  userAgent          String?
+  submittedAt        DateTime         @default(now())
+
+  @@index([tenantId])
+  @@map("rally_acceptances")
 }
 
 enum ApplicationStatus {

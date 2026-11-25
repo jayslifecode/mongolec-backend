@@ -141,6 +141,33 @@ describe('mergeRiderSightings', () => {
     expect(graham?.rallies.size).toBe(2);
   });
 
+  it('features the portrait from the latest rally, whatever order the sightings arrive in', () => {
+    // Arrange: the client rule "if they have 2022 and 2025 photos, use the latest"
+    const sightings = [
+      { rawName: 'Jane Doe', rallySlug: 'peru-2022', year: 2022, photo: 'https://example.com/jane-2022.jpg' },
+      { rawName: 'Jane Doe', rallySlug: 'mongolia-2025', year: 2025, photo: 'https://example.com/jane-2025.jpg' },
+      { rawName: 'Jane Doe', rallySlug: 'mongolia-2023', year: 2023, photo: 'https://example.com/jane-2023.jpg' },
+    ];
+
+    // Act
+    const merged = mergeRiderSightings(sightings, 'Mongolia');
+
+    // Assert
+    expect(merged[0].photo).toBe('https://example.com/jane-2025.jpg');
+  });
+
+  it('prefers a dated portrait over an undated one, and keeps the first of equal years', () => {
+    const merged = mergeRiderSightings(
+      [
+        { rawName: 'Jane Doe', photo: 'https://example.com/undated.jpg' },
+        { rawName: 'Jane Doe', rallySlug: 'peru-2022', year: 2022, photo: 'https://example.com/a-2022.jpg' },
+        { rawName: 'Jane Doe', rallySlug: 'bhutan-2022', year: 2022, photo: 'https://example.com/b-2022.jpg' },
+      ],
+      'Mongolia'
+    );
+    expect(merged[0].photo).toBe('https://example.com/a-2022.jpg');
+  });
+
   it('ignores a blank name', () => {
     const merged = mergeRiderSightings([{ rawName: '   ' }], 'Mongolia');
     expect(merged).toHaveLength(0);
