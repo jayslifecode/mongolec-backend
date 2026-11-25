@@ -28,6 +28,7 @@ export const storyMutations = {
         data: {
           ...data,
           tenantId: context.tenant?.id,
+          createdById: context.user.id,
           status: data.status || 'DRAFT',
         },
         include: {
