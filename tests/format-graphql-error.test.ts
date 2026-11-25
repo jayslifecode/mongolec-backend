@@ -40,6 +40,19 @@ describe('publicGraphQLError (production)', () => {
     expect(shown.code).toBe('BAD_USER_INPUT');
   });
 
+  it('shows query validation errors even when Apollo attaches an internal error object', () => {
+    class ValidationError extends GraphQLError {}
+    const inner = new ValidationError('Cannot query field "rooming" on type "RallyAcceptance".');
+    const error = wrap(inner, { code: 'GRAPHQL_VALIDATION_FAILED' });
+    const shown = publicGraphQLError(
+      { ...base, message: inner.message, extensions: { code: 'GRAPHQL_VALIDATION_FAILED' } },
+      error,
+      true
+    );
+    expect(shown.message).toBe('Cannot query field "rooming" on type "RallyAcceptance".');
+    expect(shown.code).toBe('GRAPHQL_VALIDATION_FAILED');
+  });
+
   it('hides programming and database errors', () => {
     const typeError = wrap(new TypeError("Cannot read properties of undefined (reading 'id')"));
     expect(
