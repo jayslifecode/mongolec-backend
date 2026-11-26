@@ -1,8 +1,10 @@
 import { Prisma } from '@prisma/client';
+import { assertPermission } from '@/utils/permissions';
 
 export const nominationQueries = {
   // Get all nominations with filters
   getNominations: async (_: any, args: any, context: any) => {
+    assertPermission(context, 'nomination:manage');
     const { page = 1, limit = 20, status, country, search, orderBy = 'createdAt', orderDirection = 'desc' } = args;
     const isSuperAdmin = context.user?.roles?.includes('super_admin');
 
@@ -60,6 +62,7 @@ export const nominationQueries = {
 
   // Get single nomination by ID
   getNomination: async (_: any, args: any, context: any) => {
+    assertPermission(context, 'nomination:manage');
     const { id } = args;
     const isSuperAdmin = context.user?.roles?.includes('super_admin');
 
@@ -85,6 +88,7 @@ export const nominationQueries = {
 
   // Get pending nominations
   getPendingNominations: async (_: any, args: any, context: any) => {
+    assertPermission(context, 'nomination:manage');
     const { page = 1, limit = 20 } = args;
     const isSuperAdmin = context.user?.roles?.includes('super_admin');
 
@@ -124,6 +128,7 @@ export const nominationQueries = {
 
   // Get approved nominations
   getApprovedNominations: async (_: any, args: any, context: any) => {
+    assertPermission(context, 'nomination:manage');
     const { page = 1, limit = 20 } = args;
     const isSuperAdmin = context.user?.roles?.includes('super_admin');
 
@@ -163,6 +168,7 @@ export const nominationQueries = {
 
   // Get nomination statistics
   getNominationStats: async (_: any, _args: any, context: any) => {
+    assertPermission(context, 'nomination:manage');
     const isSuperAdmin = context.user?.roles?.includes('super_admin');
     try {
       const where: Prisma.ParkNominationWhereInput = {
