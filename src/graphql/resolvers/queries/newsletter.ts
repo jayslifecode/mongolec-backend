@@ -1,8 +1,10 @@
 import { Prisma } from '@prisma/client';
+import { assertPermission } from '@/utils/permissions';
 
 export const newsletterQueries = {
   // Get all subscriptions with filters
   getNewsletterSubscriptions: async (_: any, args: any, context: any) => {
+    assertPermission(context, 'newsletter:manage');
     const { page = 1, limit = 20, status, search, orderBy = 'createdAt', orderDirection = 'desc' } = args;
 
     try {
@@ -48,6 +50,7 @@ export const newsletterQueries = {
 
   // Get single subscription by ID
   getNewsletterSubscription: async (_: any, args: any, context: any) => {
+    assertPermission(context, 'newsletter:manage');
     const { id } = args;
 
     try {
@@ -69,6 +72,7 @@ export const newsletterQueries = {
 
   // Get subscription statistics
   getNewsletterStats: async (_: any, _args: any, context: any) => {
+    assertPermission(context, 'newsletter:manage');
     try {
       const where: Prisma.NewsletterSubscriptionWhereInput = {
         tenantId: context.tenant?.id,
