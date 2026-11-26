@@ -12,6 +12,30 @@ function assertDateOrder(startDate: Date, endDate: Date): void {
   }
 }
 
+/**
+ * Runs a rally write. When the write features the rally on the home hero, the organisation's
+ * other featured rallies are un-featured first, in the same transaction, so there is only
+ * ever one (a partial unique index enforces it in the database too).
+ */
+async function writeRally<T>(
+  prisma: any,
+  feature: { isFeaturing: boolean; tenantId: string; keepId?: string },
+  write: (db: any) => Promise<T>
+): Promise<T> {
+  if (!feature.isFeaturing) return write(prisma);
+  return prisma.$transaction(async (tx: any) => {
+    await tx.rally.updateMany({
+      where: {
+        tenantId: feature.tenantId,
+        isFeatured: true,
+        ...(feature.keepId && { id: { not: feature.keepId } }),
+      },
+      data: { isFeatured: false },
+    });
+    return write(tx);
+  });
+}
+
 export const rallyMutations = {
   // Create a new rally
   createRally: async (_: any, args: any, context: any) => {
@@ -56,25 +80,28 @@ export const rallyMutations = {
         Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24));
 
       // Create rally
-      const rally = await context.prisma.rally.create({
-        data: {
-          ...rallyData,
-          duration,
-          tenantId: resolvedTenantId,
-          createdById: context.user.id,
-        },
-        include: {
-          tenant: true,
-          createdBy: {
-            select: {
-              id: true,
-              firstName: true,
-              lastName: true,
-              email: true,
+      const feature = { isFeaturing: data.isFeatured === true, tenantId: resolvedTenantId };
+      const rally = await writeRally(context.prisma, feature, db =>
+        db.rally.create({
+          data: {
+            ...rallyData,
+            duration,
+            tenantId: resolvedTenantId,
+            createdById: context.user.id,
+          },
+          include: {
+            tenant: true,
+            createdBy: {
+              select: {
+                id: true,
+                firstName: true,
+                lastName: true,
+                email: true,
+              },
             },
           },
-        },
-      });
+        })
+      );
 
       return rally;
     } catch (error) {
@@ -138,33 +165,36 @@ export const rallyMutations = {
       }
 
       // Update rally
-      const rally = await context.prisma.rally.update({
-        where: { id },
-        data: {
-          ...data,
-          ...(duration && { duration }),
-          updatedById: context.user.id,
-        },
-        include: {
-          tenant: true,
-          createdBy: {
-            select: {
-              id: true,
-              firstName: true,
-              lastName: true,
-              email: true,
+      const feature = { isFeaturing: data.isFeatured === true, tenantId: existing.tenantId, keepId: id };
+      const rally = await writeRally(context.prisma, feature, db =>
+        db.rally.update({
+          where: { id },
+          data: {
+            ...data,
+            ...(duration && { duration }),
+            updatedById: context.user.id,
+          },
+          include: {
+            tenant: true,
+            createdBy: {
+              select: {
+                id: true,
+                firstName: true,
+                lastName: true,
+                email: true,
+              },
+            },
+            updatedBy: {
+              select: {
+                id: true,
+                firstName: true,
+                lastName: true,
+                email: true,
+              },
             },
           },
-          updatedBy: {
-            select: {
-              id: true,
-              firstName: true,
-              lastName: true,
-              email: true,
-            },
-          },
-        },
-      });
+        })
+      );
 
       return rally;
     } catch (error) {

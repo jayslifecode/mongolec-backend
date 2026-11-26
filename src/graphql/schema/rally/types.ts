@@ -37,6 +37,8 @@ export const rallyTypeDefs = gql`
     # Application Settings
     isRecruiting: Boolean!
     isPlaceholder: Boolean!
+    # Shown, with its heroVideo, at the top of the website's home page. One per organisation.
+    isFeatured: Boolean!
     applicationDeadline: DateTime
 
     # Financial

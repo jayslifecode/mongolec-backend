@@ -179,6 +179,7 @@ export interface RallyInput {
   conservationActivities: JSONObject;
   rangerPartnerships: JSONObject;
   isRecruiting?: boolean;
+  isFeatured?: boolean;
   applicationDeadline?: Date;
   cost?: JSONObject;
   depositAmount?: JSONObject;

@@ -15,7 +15,11 @@ export const rallyQueries = gql`
       orderBy: String
       orderDirection: String
       tenantId: ID
+      isFeatured: Boolean
     ): PaginatedRallies!
+
+    # The rally featured on the website's home hero (never a draft), or null
+    getFeaturedRally: Rally
 
     # Get single rally by slug or ID
     getRally(slug: String, id: ID): Rally
