@@ -46,6 +46,8 @@ export const rallyMutations = gql`
     status: RallyStatus
     isRecruiting: Boolean
     isPlaceholder: Boolean
+    # true un-features the organisation's other rallies
+    isFeatured: Boolean
     applicationDeadline: DateTime
     cost: JSON
     depositAmount: JSON
@@ -77,6 +79,8 @@ export const rallyMutations = gql`
     rangerPartnerships: JSON
     isRecruiting: Boolean
     isPlaceholder: Boolean
+    # true un-features the organisation's other rallies
+    isFeatured: Boolean
     applicationDeadline: DateTime
     cost: JSON
     depositAmount: JSON

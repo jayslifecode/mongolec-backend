@@ -28,6 +28,7 @@ export const rallyQueries = {
       orderBy = 'createdAt',
       orderDirection = 'desc',
       tenantId: tenantIdArg,
+      isFeatured,
     } = args;
     const isSuperAdmin = context.user?.roles?.includes('super_admin');
 
@@ -43,6 +44,7 @@ export const rallyQueries = {
         ...tenantFilter,
         deletedAt: null,
         ...(status ? { status } : !context.user && HIDE_DRAFTS),
+        ...(typeof isFeatured === 'boolean' && { isFeatured }),
       };
       // A visitor asking for drafts by status still gets none.
       if (!context.user && status === 'DRAFT') return emptyPage(page, limit);
@@ -289,6 +291,16 @@ export const rallyQueries = {
       console.error('Error fetching past rallies:', error);
       throw new Error('Failed to fetch past rallies');
     }
+  },
+
+  // The rally featured on the website's home hero. Public, so drafts are never returned, and
+  // without a known organisation there is nothing to answer (no cross-tenant fallback).
+  getFeaturedRally: async (_: any, _args: any, context: any) => {
+    const tenantId = context.tenant?.id;
+    if (!tenantId) return null;
+    return context.prisma.rally.findFirst({
+      where: { tenantId, deletedAt: null, isFeatured: true, ...HIDE_DRAFTS },
+    });
   },
 
   // Get recruiting rallies (accepting applications)

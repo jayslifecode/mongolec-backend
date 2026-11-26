@@ -988,6 +988,7 @@ model Rally {
   // Application Settings
   isRecruiting     Boolean  @default(true)
   isPlaceholder    Boolean  @default(false) // "To be announced" card: no dates/spots/apply
+  isFeatured       Boolean  @default(false) // Shown (with its heroVideo) in the website's home hero; one per tenant
   applicationDeadline DateTime?
 
   // Financial (without Stripe)
